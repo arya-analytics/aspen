@@ -33,6 +33,16 @@ type Digest struct {
 
 type Nodes map[ID]Node
 
+func (nodes Nodes) Resolve(id ID) (address.Address, bool) {
+	n, ok := nodes.Retrieve(id)
+	return n.Address, ok
+}
+
+func (nodes Nodes) Retrieve(id ID) (Node, bool) {
+	n, ok := nodes[id]
+	return n, ok
+}
+
 type Digests map[ID]Digest
 
 type Merger struct {
