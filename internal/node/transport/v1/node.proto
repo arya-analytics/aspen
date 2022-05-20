@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package node.v1;
+
+service Gossip {
+  rpc Sync(Sync) returns (Error);
+  rpc Ack(Ack) returns (Error);
+  rpc Ack2(Ack2) returns (Error);
+}
+
+message Error {}
+
+message Node {
+  uint32 id = 1 [
+    (gogoproto.customname) = "ID",
+    (gogoproto.casttype) = "github.com/aryan-analytics/aspen/internal/node.ID"
+  ];
+  string address = 2;
+  Heartbeat heartbeat = 3;
+}
+
+message Digest {
+  uint32 node_id = 1 [
+    (gogoproto.customname) = "ID",
+    (gogoproto.casttype) = "github.com/arya-analytics/aspen/internal/node.ID"
+  ];
+  Heartbeat heartbeat = 2;
+}
+
+message Heartbeat {
+  uint32 generation = 1;
+  uint32 version = 2;
+}
+
+message Sync {
+  repeated Digest digests = 2;
+}
+
+message Ack {
+  repeated Node nodes = 1;
+  repeated Digest digests = 2;
+}
+
+message Ack2 {
+  repeated Node nodes = 1;
+}
