@@ -21,6 +21,8 @@ type Node struct {
 	Cluster Cluster
 
 	heartbeat *version.Heartbeat
+
+	gossip *Gossip
 }
 
 func (n Node) Digest() Digest {
