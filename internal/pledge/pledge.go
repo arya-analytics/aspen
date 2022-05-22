@@ -3,7 +3,7 @@ package pledge
 import (
 	"context"
 	"errors"
-	"github.com/arya-analytics/aspen/internal/node"
+	. "github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
 	"github.com/arya-analytics/x/iter"
@@ -23,7 +23,8 @@ const (
 
 var (
 	errProposalRejected  = errors.New("proposal rejected")
-	errQuorumUnreachable = errors.New("quorum unreachable")
+	ErrQuorumUnreachable = errors.New("quorum unreachable")
+	ErrNoPeers           = errors.New("no peers")
 )
 
 // Pledge pledges a node to a Jury selected from candidates for membership. Membership behaves in a similar
@@ -36,10 +37,13 @@ var (
 //
 // Pledge will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
 //
-func Pledge(ctx context.Context, peers []address.Address, candidates func() node.Group, cfg Config) (id node.ID, err error) {
+func Pledge(ctx context.Context, peers []address.Address, candidates func() Group, cfg Config) (id ID, err error) {
+	if len(peers) == 0 {
+		return 0, ErrNoPeers
+	}
 	cfg.peerAddresses, cfg.candidates = peers, candidates
 	cfg = cfg.Merge(DefaultConfig())
-	nextAddr := iter.Slice(cfg.peerAddresses)
+	nextAddr := iter.InfiniteSlice(cfg.peerAddresses)
 	t := xtime.NewScaledTicker(cfg.PledgeBaseRetry, cfg.PledgeRetryScale)
 	defer t.Stop()
 	for range t.C {
@@ -61,7 +65,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 
 func Arbitrate(cfg Config) {
 	j := &juror{Config: cfg}
-	cfg.Transport.Handle(func(ctx context.Context, id node.ID) (node.ID, error) {
+	cfg.Transport.Handle(func(ctx context.Context, id ID) (ID, error) {
 		if id == 0 {
 			t := &responsible{Config: cfg}
 			return t.propose(ctx)
@@ -73,7 +77,7 @@ func Arbitrate(cfg Config) {
 // Config is used for configuring a pledge based membership network.
 type Config struct {
 	// Transport is used for sending pledge information over the network.
-	Transport transport.Unary[node.ID, node.ID]
+	Transport transport.Unary[ID, ID]
 	// RequestTimeout is the timeout for a peer to respond to a pledge or proposal request.
 	// If the request is not responded to before the timeout, a new jury will be formed and the request will be retried.
 	RequestTimeout time.Duration
@@ -82,8 +86,8 @@ type Config struct {
 	// PledgeInterval scale sets how quickly the time in-between retries will increase during a Pledge to a peer. For example,
 	// a value of 2 would result in a retry interval of 1,2, 4, 8, 16, 32, 64, ... seconds.
 	PledgeRetryScale float64
-	// candidates is a list of nodes to contact for as candidates for the formation of a jury.
-	candidates func() node.Group
+	// candidates is a Group of nodes to contact for as candidates for the formation of a jury.
+	candidates func() Group
 	// peerAddresses is a set of addresses a pledge can contact.
 	peerAddresses []address.Address
 }
@@ -113,11 +117,11 @@ func DefaultConfig() Config {
 
 type responsible struct {
 	Config
-	candidates  node.Group
-	_proposedID node.ID
+	candidates  Group
+	_proposedID ID
 }
 
-func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
+func (r *responsible) propose(ctx context.Context) (id ID, err error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -156,16 +160,16 @@ func (r *responsible) refreshCandidates() {
 	r.candidates = r.Config.candidates()
 }
 
-func (r *responsible) buildQuorum() (node.Group, error) {
+func (r *responsible) buildQuorum() (Group, error) {
 	size := len(r.candidates)/2 + 1
-	healthy := r.candidates.WhereState(node.StateHealthy)
+	healthy := r.candidates.WhereState(StateHealthy)
 	if len(healthy) < size {
-		return node.Group{}, errQuorumUnreachable
+		return Group{}, ErrQuorumUnreachable
 	}
 	return rand.MapSub(healthy, size), nil
 }
 
-func (r *responsible) idToPropose() node.ID {
+func (r *responsible) idToPropose() ID {
 	if r._proposedID == 0 {
 		r._proposedID = filter.MaxMapKey(r.candidates)
 	} else {
@@ -174,7 +178,7 @@ func (r *responsible) idToPropose() node.ID {
 	return r._proposedID
 }
 
-func (r *responsible) consultQuorum(ctx context.Context, id node.ID, quorum node.Group) error {
+func (r *responsible) consultQuorum(ctx context.Context, id ID, quorum Group) error {
 	ctx, cancel := context.WithTimeout(ctx, r.RequestTimeout)
 	defer cancel()
 	wg := errgroup.Group{}
@@ -197,10 +201,10 @@ func (r *responsible) consultQuorum(ctx context.Context, id node.ID, quorum node
 type juror struct {
 	Config
 	mu        sync.Mutex
-	approvals []node.ID
+	approvals []ID
 }
 
-func (j *juror) verdict(ctx context.Context, id node.ID) (err error) {
+func (j *juror) verdict(ctx context.Context, id ID) (err error) {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
