@@ -49,7 +49,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 
 type cluster struct {
 	Config
-	state *state
+	state *State
 }
 
 func (c *cluster) Load(reader io.Reader) error {

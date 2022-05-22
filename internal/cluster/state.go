@@ -1,23 +1,30 @@
 package cluster
 
 import (
-	. "github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/aspen/internal/node"
 	"sync"
 )
 
-type state struct {
-	mu    sync.RWMutex
-	nodes Group
+type State struct {
+	mu     sync.RWMutex
+	Nodes  node.Group
+	HostID node.ID
 }
 
-func (s *state) setNode(n Node) {
+func (s *State) setNode(n node.Node) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.nodes[n.ID] = n
+	s.Nodes[n.ID] = n
 }
 
-func (s *state) snapshot() Group {
+func (s *State) snapshot() node.Group {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.nodes.Copy()
+	return s.Nodes.Copy()
+}
+
+func (s *State) host() node.Node {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Nodes[s.HostID]
 }

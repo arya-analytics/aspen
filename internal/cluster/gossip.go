@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"context"
-	. "github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
@@ -11,7 +11,13 @@ import (
 
 type Gossip struct {
 	Config
-	state *state
+	state *State
+}
+
+func NewGossip(state *State, cfg Config) *Gossip {
+	g := &Gossip{Config: cfg, state: state}
+	g.bindTransport()
+	return g
 }
 
 func (g *Gossip) Gossip(ctx context.Context) <-chan error {
@@ -34,9 +40,10 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 func (g *Gossip) GossipOnce(ctx context.Context) error {
 	var (
 		snap = g.state.snapshot()
-		addr = rand.MapValue(snap).Address
+		addr = rand.MapValue(snap.WhereState(node.StateHealthy)).Address
 		sync = Message{Digests: snap.Digests()}
 	)
+	g.state.host().Heartbeat.Increment()
 	ack, err := g.send(ctx, addr, sync)
 	if err != nil {
 		return err
@@ -81,56 +88,56 @@ func (g *Gossip) processAck2(ack2 Message) (err error) {
 }
 
 type Message struct {
-	Digests Digests
-	Nodes   Group
+	Digests node.Digests
+	Nodes   node.Group
 }
 
-func processNodes(state *state, other Group) (res Group) {
+func processNodes(state *State, other node.Group) (res node.Group) {
 	for otherID, otherNode := range other {
-		internalNode, ok := state.nodes[otherID]
+		internalNode, ok := state.Nodes[otherID]
 		// If:
 		// 	1. otherNode's version is more recent than internal.
 		// 	2. We don't have other.
 		// Then:
 		// 	Replace internal with otherNode.
-		if !ok || otherNode.Heartbeat.OlderThan(internalNode.Heartbeat) {
+		if !ok || otherNode.Heartbeat.OlderThan(*internalNode.Heartbeat) {
 			state.setNode(otherNode)
 			// If:
 			//  We have a new version that other,
 			// Then:
 			//	send our version back to the client.
-		}
-		if otherNode.Heartbeat.YoungerThan(internalNode.Heartbeat) {
+		} else if otherNode.Heartbeat.YoungerThan(*internalNode.Heartbeat) {
 			res[otherID] = otherNode
 		}
 	}
 	return res
 }
 
-func processDigests(state *state, digests Digests) (resDigests Digests, resNodes Group) {
-	resNodes = make(Group)
+func processDigests(state *State, digests node.Digests) (resDigests node.Digests, resNodes node.Group) {
+	resNodes = make(node.Group)
+	resDigests = make(node.Digests)
 	for _, dig := range digests {
-		node, ok := state.nodes[dig.ID]
+		internalNode, ok := state.Nodes[dig.ID]
 		// If:
-		// 	1. We have the node and our version is more recent.
+		// 	1. We have the internalNode and our version is more recent.
 		// Then:
 		// 	send it back to the client.
-		if ok && node.Heartbeat.OlderThan(dig.Heartbeat) {
-			resNodes[dig.ID] = node
+		if ok && internalNode.Heartbeat.OlderThan(*dig.Heartbeat) {
+			resNodes[dig.ID] = internalNode
 		}
-		// If we don't have the node, add it to the list of digests.
+		// If we don't have the internalNode, add it to the list of digests.
 		if !ok {
 			resDigests[dig.ID] = dig
 		}
 	}
 
 	// If:
-	// 1. we have a node that the other node doesn't know about.
+	// 1. we have a internalNode that the other internalNode doesn't know about.
 	// Then:
 	// 	send it back to the client.
-	for id, node := range state.nodes {
+	for id, internalNode := range state.Nodes {
 		if _, ok := digests[id]; !ok {
-			resNodes[id] = node
+			resNodes[id] = internalNode
 		}
 	}
 
