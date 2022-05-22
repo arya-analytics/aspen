@@ -1,17 +1,35 @@
 package pledge_test
 
+import "github.com/arya-analytics/aspen/internal/pledge"
+
 import (
 	"context"
 	"github.com/arya-analytics/aspen/internal/node"
-	"github.com/arya-analytics/aspen/internal/pledge"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
+	"sync"
 	"time"
 )
+
+func removeDuplicateValues(intSlice []node.ID) []node.ID {
+	keys := make(map[node.ID]bool)
+	var list []node.ID
+
+	// If the key(values of the slice) is not equal
+	// to the already present value in new slice (list)
+	// then we append it. else we jump on another element.
+	for _, entry := range intSlice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
 
 var _ = Describe("Member", func() {
 	var (
@@ -129,7 +147,7 @@ var _ = Describe("Member", func() {
 			})
 		})
 		Context("One juror are aware of a new node", func() {
-			FIt("Should assign the correct ID", func() {
+			It("Should assign the correct ID", func() {
 				var (
 					nodes           = make(node.Group)
 					allCandidates   = func() node.Group { return nodes }
@@ -139,7 +157,6 @@ var _ = Describe("Member", func() {
 					net = tmock.NewNetwork[node.ID, node.ID]()
 					t1  = net.Route("")
 				)
-				logger, _ := zap.NewDevelopment()
 				for i := 0; i < 10; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
@@ -216,6 +233,48 @@ var _ = Describe("Member", func() {
 				cancel()
 				id, err := pledge.Pledge(ctx, nodes.Addresses(), candidates, pledge.Config{Transport: t1, Logger: logger})
 				Expect(err).To(Equal(context.Canceled))
+				Expect(id).To(Equal(node.ID(0)))
+			})
+		})
+		Context("Concurrent Pledges", func() {
+			It("Should assign unique IDs to all pledges", func() {
+				var (
+					nodes         = make(node.Group)
+					candidates    = func() node.Group { return nodes }
+					net           = tmock.NewNetwork[node.ID, node.ID]()
+					t1            = net.Route("")
+					numCandidates = 10
+					numPledges    = 4
+				)
+				for i := 0; i < numCandidates; i++ {
+					t := net.Route("")
+					cfg := pledge.Config{Transport: t, Logger: logger}
+					pledge.Arbitrate(candidates, cfg)
+					id := node.ID(i)
+					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
+				wg := sync.WaitGroup{}
+				ids := make([]node.ID, numPledges)
+				for i := 0; i < numPledges; i++ {
+					wg.Add(1)
+					go func(i int) {
+						defer GinkgoRecover()
+						defer wg.Done()
+						id, err := pledge.Pledge(ctx, nodes.Addresses(), candidates, pledge.Config{Transport: t1, Logger: logger})
+						Expect(err).ToNot(HaveOccurred())
+						ids[i] = id
+					}(i)
+				}
+				wg.Wait()
+				Expect(len(removeDuplicateValues(ids))).To(Equal(numPledges))
+			})
+		})
+		Context("No peer addresses provided to pledge", func() {
+			It("Should return an ErrNoPeers", func() {
+				id, err := pledge.Pledge(context.Background(), []address.Address{}, func() node.Group { return nil }, pledge.Config{})
+				Expect(err).To(Equal(pledge.ErrNoPeers))
 				Expect(id).To(Equal(node.ID(0)))
 			})
 		})
