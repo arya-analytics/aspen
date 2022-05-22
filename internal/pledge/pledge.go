@@ -75,15 +75,16 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 		cfg.Logger.Error("failed to contact peer. retrying with next")
 	}
 
-	if err == nil {
-		cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
-		// If the pledge node has been inducted successfully, allow it to arbitrate in future pledges.
-		Arbitrate(candidates, cfg)
-	} else {
+	if err != nil {
 		cfg.Logger.Error("pledge failed", zap.Error(err))
-	}
+		return 0, err
 
+	}
+	cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
+	// If the pledge node has been inducted successfully, allow it to arbitrate in future pledges.
+	Arbitrate(candidates, cfg)
 	return id, err
+
 }
 
 // Arbitrate registers a node to arbitrate future pledges. When a node calls Arbitrate, it will be made available
@@ -208,8 +209,9 @@ func (r *responsible) propose(ctx context.Context) (id ID, err error) {
 func (r *responsible) refreshCandidates() { r.candidates = r.Config.candidates() }
 
 func (r *responsible) buildQuorum() (Group, error) {
-	size := len(r.candidates)/2 + 1
-	healthy := r.candidates.WhereState(StateHealthy)
+	presentCandidates := r.candidates.Where(func(_ ID, n Node) bool { return n.State != StateLeft })
+	size := len(presentCandidates)/2 + 1
+	healthy := presentCandidates.WhereState(StateHealthy)
 	if len(healthy) < size {
 		return Group{}, ErrQuorumUnreachable
 	}

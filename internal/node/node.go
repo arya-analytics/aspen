@@ -33,6 +33,7 @@ const (
 	StateHealthy State = iota
 	StateSuspect
 	StateDead
+	StateLeft
 )
 
 type Group map[ID]Node

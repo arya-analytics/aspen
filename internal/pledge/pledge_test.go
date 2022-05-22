@@ -14,6 +14,12 @@ import (
 )
 
 var _ = Describe("Member", func() {
+	var (
+		logger *zap.Logger
+	)
+	BeforeEach(func() {
+		logger = zap.NewNop()
+	})
 	Describe("Pledge", func() {
 		Context("No Nodes Responding", func() {
 			It("Should submit round robin propose requests at scaled intervals", func() {
@@ -25,8 +31,8 @@ var _ = Describe("Member", func() {
 						time.Sleep(2 * time.Millisecond)
 						return 0, ctx.Err()
 					}
+					t1 = net.Route("")
 				)
-				t1 := net.Route("")
 				for i := 0; i < numTransports; i++ {
 					t := net.Route("")
 					t.Handle(handler)
@@ -54,12 +60,14 @@ var _ = Describe("Member", func() {
 	Describe("Responsible", func() {
 		Context("Cluster State is Synchronized", func() {
 			It("Should correctly assign an ID", func() {
-				nodes := make(node.Group)
-				candidates := func() node.Group { return nodes }
-				net := tmock.NewNetwork[node.ID, node.ID]()
-				t1 := net.Route("")
-				logger, err := zap.NewDevelopment()
-				for i := 0; i < 10; i++ {
+				var (
+					nodes         = make(node.Group)
+					candidates    = func() node.Group { return nodes }
+					net           = tmock.NewNetwork[node.ID, node.ID]()
+					t1            = net.Route("")
+					numCandidates = 10
+				)
+				for i := 0; i < numCandidates; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					pledge.Arbitrate(candidates, cfg)
@@ -71,7 +79,6 @@ var _ = Describe("Member", func() {
 					time.Sleep(100 * time.Millisecond)
 					cancel()
 				}()
-				Expect(err).To(BeNil())
 				id, err := pledge.Pledge(
 					ctx,
 					nodes.Addresses(),
@@ -87,16 +94,17 @@ var _ = Describe("Member", func() {
 		})
 		Context("Responsible is Missing Nodes", func() {
 			It("Should correctly assign an ID", func() {
-				nodes := make(node.Group)
-				allCandidates := func() node.Group { return nodes }
-				responsibleCandidates := func() node.Group {
-					return allCandidates().Where(func(id node.ID, _ node.Node) bool {
-						return !filter.ElementOf([]node.ID{node.ID(8), node.ID(9), node.ID(10)}, id)
-					})
-				}
-				net := tmock.NewNetwork[node.ID, node.ID]()
-				logger, err := zap.NewDevelopment()
-				t1 := net.Route("")
+				var (
+					nodes                 = make(node.Group)
+					allCandidates         = func() node.Group { return nodes }
+					responsibleCandidates = func() node.Group {
+						return allCandidates().Where(func(id node.ID, _ node.Node) bool {
+							return !filter.ElementOf([]node.ID{8, 9, 10}, id)
+						})
+					}
+					net = tmock.NewNetwork[node.ID, node.ID]()
+					t1  = net.Route("")
+				)
 				for i := 0; i < 10; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
@@ -108,12 +116,8 @@ var _ = Describe("Member", func() {
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
 				}
-				ctx, cancel := context.WithCancel(context.Background())
-				go func() {
-					time.Sleep(100 * time.Millisecond)
-					cancel()
-				}()
-				Expect(err).To(BeNil())
+				ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
 				id, err := pledge.Pledge(
 					ctx,
 					[]address.Address{allCandidates()[0].Address},
@@ -122,6 +126,97 @@ var _ = Describe("Member", func() {
 				)
 				Expect(err).To(BeNil())
 				Expect(id).To(Equal(node.ID(10)))
+			})
+		})
+		Context("One juror are aware of a new node", func() {
+			FIt("Should assign the correct ID", func() {
+				var (
+					nodes           = make(node.Group)
+					allCandidates   = func() node.Group { return nodes }
+					extraCandidates = func() node.Group {
+						return node.Group{10: node.Node{ID: 10, Address: "localhost:10", State: node.StateHealthy}}
+					}
+					net = tmock.NewNetwork[node.ID, node.ID]()
+					t1  = net.Route("")
+				)
+				logger, _ := zap.NewDevelopment()
+				for i := 0; i < 10; i++ {
+					t := net.Route("")
+					cfg := pledge.Config{Transport: t, Logger: logger}
+					if (i % 2) == 0 {
+						pledge.Arbitrate(allCandidates, cfg)
+					} else {
+						pledge.Arbitrate(extraCandidates, cfg)
+					}
+					id := node.ID(i)
+					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				defer cancel()
+				id, err := pledge.Pledge(
+					ctx,
+					[]address.Address{allCandidates()[0].Address},
+					extraCandidates,
+					pledge.Config{Transport: t1, Logger: logger},
+				)
+				Expect(err).To(BeNil())
+				Expect(id).To(Equal(node.ID(11)))
+			})
+		})
+		Context("Too Few Healthy Nodes To Form a Quorum", func() {
+			It("Should return an ErrQuorumUnreachable", func() {
+				var (
+					nodes         = make(node.Group)
+					candidates    = func() node.Group { return nodes }
+					net           = tmock.NewNetwork[node.ID, node.ID]()
+					t1            = net.Route("")
+					numCandidates = 10
+				)
+				for i := 0; i < numCandidates; i++ {
+					t := net.Route("")
+					var state node.State
+					if (i % 2) == 0 {
+						state = node.StateHealthy
+					} else {
+						state = node.StateDead
+					}
+					cfg := pledge.Config{Transport: t, Logger: logger}
+					pledge.Arbitrate(candidates, cfg)
+					id := node.ID(i)
+					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: state}
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+				defer cancel()
+				id, err := pledge.Pledge(ctx,
+					[]address.Address{candidates()[0].Address},
+					candidates,
+					pledge.Config{Transport: t1, Logger: logger},
+				)
+				Expect(err).To(Equal(pledge.ErrQuorumUnreachable))
+				Expect(id).To(Equal(node.ID(0)))
+			})
+		})
+		Describe("Cancelling a Context", func() {
+			It("Should stop all operations and return a cancellation error", func() {
+				var (
+					nodes         = make(node.Group)
+					candidates    = func() node.Group { return nodes }
+					net           = tmock.NewNetwork[node.ID, node.ID]()
+					t1            = net.Route("")
+					numCandidates = 10
+				)
+				for i := 0; i < numCandidates; i++ {
+					t := net.Route("")
+					cfg := pledge.Config{Transport: t, Logger: logger}
+					pledge.Arbitrate(candidates, cfg)
+					id := node.ID(i)
+					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
+				}
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				id, err := pledge.Pledge(ctx, nodes.Addresses(), candidates, pledge.Config{Transport: t1, Logger: logger})
+				Expect(err).To(Equal(context.Canceled))
+				Expect(id).To(Equal(node.ID(0)))
 			})
 		})
 	})
