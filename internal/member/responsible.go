@@ -12,9 +12,10 @@ type responsible struct {
 	Config
 }
 
-func (r *responsible) exec(ctx context.Context) (node.ID, error) {
+func (r *responsible) processPledge(ctx context.Context, _ PledgeRequest) (PledgeResponse, error) {
 	t := &transaction{Config: r.Config}
-	return t.exec(ctx)
+	id, err := t.exec(ctx)
+	return PledgeResponse{ID: id}, err
 }
 
 type transaction struct {

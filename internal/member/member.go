@@ -46,14 +46,12 @@ func (m *Member) Pledge(ctx context.Context, peerAddresses []address.Address) (n
 }
 
 func New(cfg Config) *Member {
-	j := &juror{Config: cfg}
+	j, r := &juror{Config: cfg}, &responsible{Config: cfg}
 	if cfg.ProposalTransport != nil {
 		cfg.ProposalTransport.Handle(j.processProposal)
 	}
-	cfg.PledgeTransport.Handle(func(ctx context.Context, _ PledgeRequest) (PledgeResponse, error) {
-		resp := &responsible{Config: cfg}
-		id, err := resp.exec(ctx)
-		return PledgeResponse{ID: id}, err
-	})
+	if cfg.PledgeTransport != nil {
+		cfg.PledgeTransport.Handle(r.processPledge)
+	}
 	return &Member{cfg}
 }
