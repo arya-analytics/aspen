@@ -170,10 +170,7 @@ func (r *responsible) propose(ctx context.Context) (id ID, err error) {
 		// and we can safely return the new ID to the caller.
 		return id, nil
 	}
-	r.Logger.Error("responsible failed to build healthy quorum",
-		zap.Int("proposals", propC),
-		zap.Error(err),
-	)
+	r.Logger.Error("responsible failed to build healthy quorum", zap.Int("proposals", propC), zap.Error(err))
 	return id, err
 }
 
