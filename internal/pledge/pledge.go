@@ -26,15 +26,11 @@ var (
 // manner to a one way mutex. A Pledge will submit a request to a peer in peers, this peer will then request for a
 // random, quorum jury from candidates. If the jury approves the pledge, the node will be given membership, assigned a
 // unique ID, and allowed to Arbitrate in future proposals. See algorithm in package level documentation for
-// implementation details.
-//
-// Although IDs are guaranteed to be unique, they are not guarantee to be sequential.
-//
-// Pledge will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
-//
+// implementation details. Although IDs are guaranteed to be unique, they are not guarantee to be sequential. Pledge
+// will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
 func Pledge(ctx context.Context, peers []address.Address, candidates func() Group, cfg Config) (id ID, err error) {
 	if len(peers) == 0 {
-		return 0, ErrNoPeers
+		return id, ErrNoPeers
 	}
 	cfg.peerAddresses, cfg.candidates = peers, candidates
 	cfg = cfg.Merge(DefaultConfig())
