@@ -8,6 +8,7 @@ import (
 	tmock "github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -18,15 +19,15 @@ var _ = Describe("Member", func() {
 				var (
 					addresses     []address.Address
 					numTransports = 4
-					network       = tmock.NewNetwork[node.ID, node.ID]()
+					net           = tmock.NewNetwork[node.ID, node.ID]()
 					handler       = func(ctx context.Context, id node.ID) (node.ID, error) {
 						time.Sleep(2 * time.Millisecond)
 						return 0, ctx.Err()
 					}
 				)
-				t1 := network.Route("")
+				t1 := net.Route("")
 				for i := 0; i < numTransports; i++ {
-					t := network.Route("")
+					t := net.Route("")
 					t.Handle(handler)
 					addresses = append(addresses, t.Address)
 				}
@@ -43,10 +44,44 @@ var _ = Describe("Member", func() {
 				)
 				Expect(err).To(Equal(context.Canceled))
 				Expect(id).To(Equal(node.ID(0)))
-				for i, entry := range network.Entries {
+				for i, entry := range net.Entries {
 					Expect(entry.Address).To(Equal(addresses[i%4]))
 				}
 			})
+		})
+	})
+	Describe("Responsible", func() {
+		It("Should contact a quorum of nodes", func() {
+			nodes := make(node.Group)
+			candidates := func() node.Group { return nodes }
+			net := tmock.NewNetwork[node.ID, node.ID]()
+			t1 := net.Route("")
+			logger, err := zap.NewDevelopment()
+			for i := 0; i < 10; i++ {
+				t := net.Route("")
+				cfg := pledge.Config{Transport: t, Logger: logger}
+				pledge.Arbitrate(candidates, cfg)
+				id := node.ID(i)
+				nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				time.Sleep(100 * time.Millisecond)
+				cancel()
+			}()
+			Expect(err).To(BeNil())
+			id, err := pledge.Pledge(
+				ctx,
+				nodes.Addresses(),
+				candidates,
+				pledge.Config{
+					Transport: t1,
+					Logger:    logger,
+				},
+			)
+			Expect(err).To(BeNil())
+			Expect(id).To(Equal(node.ID(10)))
+
 		})
 	})
 })

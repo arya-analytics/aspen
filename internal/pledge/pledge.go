@@ -10,21 +10,16 @@ import (
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/transport"
 	xtime "github.com/arya-analytics/x/util/time"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"sync"
 	"time"
 )
 
-const (
-	pledgeBaseRetry  = 1 * time.Second
-	pledgeRetryScale = 1.5
-	requestTimeout   = 5 * time.Second
-)
-
 var (
-	errProposalRejected  = errors.New("proposal rejected")
 	ErrQuorumUnreachable = errors.New("quorum unreachable")
 	ErrNoPeers           = errors.New("no peers")
+	errProposalRejected  = errors.New("proposal rejected")
 )
 
 // Pledge pledges a node to a Jury selected from candidates for membership. Membership behaves in a similar
@@ -47,23 +42,28 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 	t := xtime.NewScaledTicker(cfg.PledgeBaseRetry, cfg.PledgeRetryScale)
 	defer t.Stop()
 	for range t.C {
+		addr := nextAddr()
+		cfg.Logger.Debug("pledging to peer", zap.String("address", string(addr)))
 		reqCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
-		id, err = cfg.Transport.Send(reqCtx, nextAddr(), 0)
+		id, err = cfg.Transport.Send(reqCtx, addr, 0)
 		cancel()
-		if errors.Is(err, context.DeadlineExceeded) {
-			continue
-		}
-		if err != nil {
+		if !errors.Is(err, context.DeadlineExceeded) {
 			break
 		}
+		cfg.Logger.Error("failed to contact peer. retrying with next")
 	}
 	if err == nil {
-		Arbitrate(cfg)
+		cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
+		Arbitrate(candidates, cfg)
+	} else {
+		cfg.Logger.Error("pledge failed", zap.Error(err))
 	}
 	return id, err
 }
 
-func Arbitrate(cfg Config) {
+func Arbitrate(candidates func() Group, cfg Config) {
+	cfg.candidates = candidates
+	cfg = cfg.Merge(DefaultConfig())
 	j := &juror{Config: cfg}
 	cfg.Transport.Handle(func(ctx context.Context, id ID) (ID, error) {
 		if id == 0 {
@@ -86,6 +86,10 @@ type Config struct {
 	// PledgeInterval scale sets how quickly the time in-between retries will increase during a Pledge to a peer. For example,
 	// a value of 2 would result in a retry interval of 1,2, 4, 8, 16, 32, 64, ... seconds.
 	PledgeRetryScale float64
+	// Logger is where the pledge process will log to.
+	Logger *zap.Logger
+	// MaxProposals is the maximum number of proposals a responsible will make to a quorum before giving up.
+	MaxProposals int
 	// candidates is a Group of nodes to contact for as candidates for the formation of a jury.
 	candidates func() Group
 	// peerAddresses is a set of addresses a pledge can contact.
@@ -102,14 +106,22 @@ func (cfg Config) Merge(override Config) Config {
 	if cfg.RequestTimeout == 0 {
 		cfg.RequestTimeout = override.RequestTimeout
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = override.Logger
+	}
+	if cfg.MaxProposals == 0 {
+		cfg.MaxProposals = override.MaxProposals
+	}
 	return cfg
 }
 
 func DefaultConfig() Config {
 	return Config{
-		RequestTimeout:   requestTimeout,
-		PledgeBaseRetry:  pledgeBaseRetry,
-		PledgeRetryScale: pledgeRetryScale,
+		RequestTimeout:   5 * time.Second,
+		PledgeBaseRetry:  1 * time.Second,
+		PledgeRetryScale: 1.5,
+		Logger:           zap.NewNop(),
+		MaxProposals:     10,
 	}
 }
 
@@ -122,11 +134,11 @@ type responsible struct {
 }
 
 func (r *responsible) propose(ctx context.Context) (id ID, err error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return id, ctx.Err()
-		default:
+	r.Logger.Debug("responsible received pledge. starting proposal process.")
+	var propC int
+	for propC = 0; propC < r.MaxProposals; propC++ {
+		if err = ctx.Err(); err != nil {
+			break
 		}
 
 		// pull in the latest candidates. We manually refresh candidates
@@ -140,25 +152,36 @@ func (r *responsible) propose(ctx context.Context) (id ID, err error) {
 		// approved the request last time. This will result in marginally higher IDs being
 		// assigned, but it's better than adding a lot of extra responsible logic.
 		id = r.idToPropose()
+		logID := zap.Uint32("id", uint32(id))
 
-		quorum, err := r.buildQuorum()
-		if err != nil {
-			return 0, err
+		quorum, qErr := r.buildQuorum()
+		if qErr != nil {
+			err = qErr
+			break
 		}
+
+		r.Logger.Debug("responsible proposing id", logID, zap.Int("quorumCount", len(quorum)))
+
 		// If any node returns an error, it means we need to retry the responsible with a new ID.
 		if err = r.consultQuorum(ctx, id, quorum); err != nil {
+			r.Logger.Error("quorum rejected proposal. retrying.", zap.Error(err))
 			continue
 		}
+
+		r.Logger.Debug("quorum accepted pledge", logID)
 
 		// If no candidates return an error, it means we reached a quorum approval,
 		// and we can safely return the new ID to the caller.
 		return id, nil
 	}
+	r.Logger.Error("responsible failed to build healthy quorum",
+		zap.Int("proposals", propC),
+		zap.Error(err),
+	)
+	return id, err
 }
 
-func (r *responsible) refreshCandidates() {
-	r.candidates = r.Config.candidates()
-}
+func (r *responsible) refreshCandidates() { r.candidates = r.Config.candidates() }
 
 func (r *responsible) buildQuorum() (Group, error) {
 	size := len(r.candidates)/2 + 1
@@ -171,7 +194,7 @@ func (r *responsible) buildQuorum() (Group, error) {
 
 func (r *responsible) idToPropose() ID {
 	if r._proposedID == 0 {
-		r._proposedID = filter.MaxMapKey(r.candidates)
+		r._proposedID = filter.MaxMapKey(r.candidates) + 1
 	} else {
 		r._proposedID++
 	}
@@ -179,12 +202,13 @@ func (r *responsible) idToPropose() ID {
 }
 
 func (r *responsible) consultQuorum(ctx context.Context, id ID, quorum Group) error {
-	ctx, cancel := context.WithTimeout(ctx, r.RequestTimeout)
+	reqCtx, cancel := context.WithTimeout(ctx, r.RequestTimeout)
 	defer cancel()
 	wg := errgroup.Group{}
 	for _, n := range quorum {
+		node := n
 		wg.Go(func() error {
-			_, err := r.Transport.Send(ctx, n.Address, id)
+			_, err := r.Transport.Send(reqCtx, node.Address, id)
 			// If any node returns an error, we need to retry the entire responsible,
 			// so we need to cancel all running requests.
 			if err != nil {
@@ -205,6 +229,8 @@ type juror struct {
 }
 
 func (j *juror) verdict(ctx context.Context, id ID) (err error) {
+	logID := zap.Uint32("id", uint32(id))
+	j.Logger.Debug("juror received proposal. making verdict.", logID)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -212,12 +238,15 @@ func (j *juror) verdict(ctx context.Context, id ID) (err error) {
 	defer j.mu.Unlock()
 	for _, appID := range j.approvals {
 		if appID == id {
+			j.Logger.Error("juror rejected proposal. already approved for a different pledge.", logID)
 			return errProposalRejected
 		}
 	}
-	if filter.MaxMapKey(j.candidates()) > id {
+	if id > filter.MaxMapKey(j.candidates()) {
 		j.approvals = append(j.approvals, id)
+		j.Logger.Debug("juror approved proposal.", logID)
 		return nil
 	}
+	j.Logger.Error("juror rejected proposal. id out of range", logID)
 	return errProposalRejected
 }
