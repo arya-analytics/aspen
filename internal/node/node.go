@@ -2,7 +2,7 @@ package node
 
 import (
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/filter"
+	"github.com/arya-analytics/x/version"
 )
 
 type ID uint32
@@ -25,7 +25,11 @@ type Node struct {
 	Address address.Address
 
 	State State
+
+	Heartbeat version.Heartbeat
 }
+
+func (n Node) Digest() Digest { return Digest{ID: n.ID, Heartbeat: n.Heartbeat} }
 
 type State byte
 
@@ -36,19 +40,7 @@ const (
 	StateLeft
 )
 
-type Group map[ID]Node
-
-func (n Group) WhereState(state State) Group {
-	return n.Where(func(_ ID, n Node) bool { return n.State == state })
-}
-
-func (n Group) Where(cond func(ID, Node) bool) Group {
-	return filter.Map(n, cond)
-}
-
-func (n Group) Addresses() (addresses []address.Address) {
-	for _, v := range n {
-		addresses = append(addresses, v.Address)
-	}
-	return addresses
+type Digest struct {
+	ID        ID
+	Heartbeat version.Heartbeat
 }
