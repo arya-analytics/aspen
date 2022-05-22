@@ -253,7 +253,7 @@ var _ = Describe("Member", func() {
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 				defer cancel()
 				wg := sync.WaitGroup{}
 				ids := make([]node.ID, numPledges)
