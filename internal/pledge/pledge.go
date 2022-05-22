@@ -54,11 +54,15 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 	if len(peers) == 0 {
 		return id, ErrNoPeers
 	}
+
 	cfg.peerAddresses, cfg.candidates = peers, candidates
 	cfg = cfg.Merge(DefaultConfig())
+
 	nextAddr := iter.InfiniteSlice(cfg.peerAddresses)
+
 	t := xtime.NewScaledTicker(cfg.PledgeBaseRetry, cfg.PledgeRetryScale)
 	defer t.Stop()
+
 	for range t.C {
 		addr := nextAddr()
 		cfg.Logger.Debug("pledging to peer", zap.String("address", string(addr)))
@@ -70,12 +74,15 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 		}
 		cfg.Logger.Error("failed to contact peer. retrying with next")
 	}
+
 	if err == nil {
 		cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
+		// If the pledge node has been inducted successfully, allow it to arbitrate in future pledges.
 		Arbitrate(candidates, cfg)
 	} else {
 		cfg.Logger.Error("pledge failed", zap.Error(err))
 	}
+
 	return id, err
 }
 
