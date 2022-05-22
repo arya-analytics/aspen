@@ -78,8 +78,8 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 	if err != nil {
 		cfg.Logger.Error("pledge failed", zap.Error(err))
 		return 0, err
-
 	}
+
 	cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
 	// If the pledge node has been inducted successfully, allow it to arbitrate in future pledges.
 	Arbitrate(candidates, cfg)
