@@ -1,3 +1,22 @@
+// Package pledge provides a system for pledging a node to a jury of candidates. The pledge uses quorum consensus
+// to assign the node a unique ID.
+//
+// To pledge a new node to a jury, call Pledge() with a set of peer addresses. To register a node as a candidate,
+// use Arbitrate().
+//
+// Vocabulary:
+//
+//  Pledge - Used as both a verb and noun. A "Pledge" is a node that has 'pledged' itself to the cluster. 'Pledging' is
+//  the entire process of contacting a peer, proposing an ID to a jury, and returning it to the pledge.
+//  Responsible - A node that is responsible for coordinating the Pledge process. A responsible node is the first peer
+//  that accepts the Pledge request from the pledge node.
+// 	Candidates - A pool of nodes that can be selected to form a jury that can arbitrate a Pledge.
+//  Jury - A quorum (numCandidates/2 + 1) of candidates arbitrate a Pledge. All jurors must accept the Pledge for
+//  the node to be inducted.
+//
+// The following RFC provides details on how the pledging algorithm
+// is implemented. https://github.com/arya-analytics/delta/blob/DA-153-aspen-rfc/docs/rfc/220518-aspen-p2p-network.md#adding-a-member.
+//
 package pledge
 
 import (
@@ -17,9 +36,12 @@ import (
 )
 
 var (
+	// ErrQuorumUnreachable is returned when a quorum jury cannot be safely assembled.
 	ErrQuorumUnreachable = errors.New("quorum unreachable")
-	ErrNoPeers           = errors.New("no peers")
-	errProposalRejected  = errors.New("proposal rejected")
+	// ErrNoPeers is returned when no peers are provided to the Pledge.
+	ErrNoPeers = errors.New("no peers")
+	// errProposalRejected is an internal error returned when a juror rejects a pledge proposal from a responsible node.
+	errProposalRejected = errors.New("proposal rejected")
 )
 
 // Pledge pledges a node to a Jury selected from candidates for membership. Membership behaves in a similar
@@ -57,6 +79,8 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 	return id, err
 }
 
+// Arbitrate registers a node to arbitrate future pledges. When a node calls Arbitrate, it will be made available
+// to become a Responsible or Juror node. Any node that calls arbitrate should also be a member of candidates.
 func Arbitrate(candidates func() Group, cfg Config) {
 	cfg.candidates = candidates
 	cfg = cfg.Merge(DefaultConfig())
