@@ -7,7 +7,8 @@ require (
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
 	github.com/sirupsen/logrus v1.8.1
-	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	go.uber.org/zap v1.21.0
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
 replace github.com/arya-analytics/x v0.0.0-20220516233935-c9dbaa7263d1 => ./x
@@ -27,6 +28,8 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
+	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/exp v0.0.0-20200513190911-00229845015e // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/sys v0.0.0-20220319134239-a9b59b0215f8 // indirect

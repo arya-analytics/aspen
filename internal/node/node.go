@@ -44,3 +44,10 @@ func (n Group) WhereState(state State) Group {
 func (n Group) Where(cond func(ID, Node) bool) Group {
 	return filter.Map(n, cond)
 }
+
+func (n Group) Addresses() (addresses []address.Address) {
+	for _, v := range n {
+		addresses = append(addresses, v.Address)
+	}
+	return addresses
+}
