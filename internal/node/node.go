@@ -2,92 +2,45 @@ package node
 
 import (
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/version"
+	"github.com/arya-analytics/x/filter"
 )
+
+type ID uint32
+
+func (id ID) Greater(o ID) bool {
+	return id > o
+}
+
+func (id ID) Less(o ID) bool {
+	return id < o
+}
+
+func (id ID) Equal(o ID) bool {
+	return id == o
+}
 
 type Node struct {
 	ID ID
 
 	Address address.Address
 
-	Cluster Cluster
-
-	heartbeat *version.Heartbeat
-
-	gossip *Gossip
+	State State
 }
 
-func (n Node) Digest() Digest {
-	return Digest{Heartbeat: n.heartbeat}
+type State byte
+
+const (
+	StateHealthy State = iota
+	StateSuspect
+	StateDead
+)
+
+type Group map[ID]Node
+
+func (n Group) WhereState(state State) Group {
+	return n.Where(func(_ ID, n Node) bool { return n.State == state })
 }
 
-type Digest struct {
-	Heartbeat *version.Heartbeat
-}
-
-type Nodes map[ID]Node
-
-func (nodes Nodes) Resolve(id ID) (address.Address, bool) {
-	n, ok := nodes.Retrieve(id)
-	return n.Address, ok
-}
-
-func (nodes Nodes) Retrieve(id ID) (Node, bool) {
-	n, ok := nodes[id]
-	return n, ok
-}
-
-type Digests map[ID]Digest
-
-type Merger struct {
-	Nodes Nodes
-}
-
-// Merge merges two maps of Nodes according to the following algorithm:
-//
-// 1. Replaces a node with otherNode if otherNode's heartbeat
-//  is older.
-// 2. If other has not seen node, or otherNode's heartbeat is younger,
-//	adds node to an output map of Nodes.
-//
-func (m Merger) Merge(other Nodes) Nodes {
-	oNodes := make(Nodes)
-	for id, node := range m.Nodes {
-		otherNode, ok := other[id]
-		if !ok || otherNode.heartbeat.YoungerThan(*node.heartbeat) {
-			oNodes[id] = node
-			continue
-		}
-		if otherNode.heartbeat.OlderThan(*node.heartbeat) {
-			m.Nodes[id] = otherNode
-		}
-	}
-	return oNodes
-}
-
-// Filter returns a map of Nodes and digests according to the following algorithm:
-//
-// 1. If digests does not contain node OR digest heartbeat is younger than node,
-//     adds node to output map of Nodes.
-//
-// 2. If digest heartbeat is older than node, adds digest to output map of Digests.
-//
-// 3. If digests contains a node not in Merger.Nodes, adds the digest to the output map of Digests.
-func (m Merger) Filter(digests Digests) (Nodes, Digests) {
-	filteredNodes, filteredDigests := make(Nodes), make(Digests)
-	for id, node := range m.Nodes {
-		digest, ok := digests[id]
-		if !ok || digest.Heartbeat.YoungerThan(*node.heartbeat) {
-			filteredNodes[id] = node
-		}
-		if digest.Heartbeat.OlderThan(*node.heartbeat) {
-			filteredDigests[id] = digest
-		}
-	}
-	for id, digest := range digests {
-		if _, ok := m.Nodes[id]; !ok {
-			filteredDigests[id] = digest
-		}
-	}
-	return filteredNodes, filteredDigests
+func (n Group) Where(cond func(ID, Node) bool) Group {
+	return filter.Map(n, cond)
 }
