@@ -44,3 +44,5 @@ type Digest struct {
 	ID        ID
 	Heartbeat version.Heartbeat
 }
+
+type Digests map[ID]Digest

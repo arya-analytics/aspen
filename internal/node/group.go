@@ -22,13 +22,15 @@ func (n Group) Addresses() (addresses []address.Address) {
 	return addresses
 }
 
-func (n Group) Digests() []Digest {
-	digests := make([]Digest, 0, len(n))
-	for _, v := range n {
-		digests = append(digests, v.Digest())
+func (n Group) Digests() Digests {
+	digests := make(Digests, len(n))
+	for id, n := range n {
+		digests[id] = n.Digest()
 	}
 	return digests
 }
+
+func (n Group) Copy() Group { return filter.Map(n, func(_ ID, _ Node) bool { return true }) }
 
 func Merge(a, b Group) Group {
 	res := make(Group)
