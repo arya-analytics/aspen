@@ -9,44 +9,41 @@ import (
 	"github.com/arya-analytics/x/version"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"time"
 )
 
 var _ = Describe("Gossip", func() {
 	var (
-		net *tmock.Network[cluster.Message, cluster.Message]
+		net    *tmock.Network[cluster.Message, cluster.Message]
+		logger *zap.Logger
 	)
 	BeforeEach(func() {
 		net = tmock.NewNetwork[cluster.Message, cluster.Message]()
+		logger, _ = zap.NewDevelopment()
 	})
-	It("Should gossip correctly", func() {
-		log.Info("Starting")
-		t1 := net.Route("")
-		t2 := net.Route("")
-		t3 := net.Route("")
-		nodes := node.Group{
-			1: {ID: 1, Address: t1.Address, State: node.StateHealthy, Heartbeat: &version.Heartbeat{}},
-			2: {ID: 2, Address: t2.Address, State: node.StateHealthy, Heartbeat: &version.Heartbeat{}},
-		}
-		stateOne := &cluster.State{Nodes: nodes, HostID: 1}
-		nodesTwo := nodes.Copy()
-		nodesTwo[3] =
-			node.Node{
-				ID: 3, Address: t3.Address, State: node.StateDead, Heartbeat: &version.Heartbeat{},
+	Describe("Two Node", func() {
+		It("Should gossip correctly", func() {
+			t1, t2, t3 := net.Route(""), net.Route(""), net.Route("")
+			logger = zap.NewNop()
+			nodes := node.Group{
+				1: {ID: 1, Address: t1.Address, Heartbeat: &version.Heartbeat{}},
+				2: {ID: 2, Address: t2.Address, Heartbeat: &version.Heartbeat{}},
 			}
-		stateTwo := &cluster.State{Nodes: nodesTwo, HostID: 2}
-		shut := shutdown.New()
-		g1 := cluster.NewGossip(stateOne, cluster.Config{GossipTransport: t1, GossipInterval: 5 * time.Millisecond, Shutdown: shut})
-		g2 := cluster.NewGossip(stateTwo, cluster.Config{GossipTransport: t2, GossipInterval: 5 * time.Millisecond, Shutdown: shut})
-		ctx := context.Background()
-		log.Info(stateOne)
-		g1.Gossip(ctx)
-		g2.Gossip(ctx)
-
-		time.Sleep(100 * time.Millisecond)
-
-		log.Info(stateOne)
-		Expect(shut.Shutdown()).To(Succeed())
+			stateOne := &cluster.State{Nodes: nodes, HostID: 1}
+			nodesTwo := nodes.Copy()
+			nodesTwo[3] = node.Node{ID: 3, Address: t3.Address, State: node.StateDead, Heartbeat: &version.Heartbeat{}}
+			stateTwo := &cluster.State{Nodes: nodesTwo, HostID: 2}
+			shut := shutdown.New()
+			g1 := cluster.NewGossip(stateOne, cluster.Config{GossipTransport: t1, GossipInterval: 10 * time.Microsecond, Shutdown: shut, Logger: logger})
+			g2 := cluster.NewGossip(stateTwo, cluster.Config{GossipTransport: t2, GossipInterval: 10 * time.Microsecond, Shutdown: shut, Logger: logger})
+			ctx := context.Background()
+			Expect(g1.GossipOnce(ctx)).To(Succeed())
+			Expect(g2.GossipOnce(ctx)).To(Succeed())
+			Expect(stateOne.Nodes).To(HaveLen(3))
+			Expect(stateOne.Nodes[1].Heartbeat.Version).To(Equal(uint32(1)))
+			Expect(stateOne.Nodes[3].State).To(Equal(node.StateDead))
+			Expect(stateOne.Nodes[2].Heartbeat.Version).To(Equal(uint32(1)))
+		})
 	})
 })

@@ -6,6 +6,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -40,8 +41,15 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 func (g *Gossip) GossipOnce(ctx context.Context) error {
 	var (
 		snap = g.state.snapshot()
-		addr = rand.MapValue(snap.WhereState(node.StateHealthy)).Address
+		addr = rand.MapValue(snap.
+			WhereState(node.StateHealthy).
+			Where(func(id node.ID, _ node.Node) bool { return id != g.state.HostID }),
+		).Address
 		sync = Message{Digests: snap.Digests()}
+	)
+	g.Logger.Debug("initiating gossip",
+		zap.Uint32("host", uint32(g.state.HostID)),
+		zap.String("address", string(addr)),
 	)
 	g.state.host().Heartbeat.Increment()
 	ack, err := g.send(ctx, addr, sync)
@@ -72,74 +80,22 @@ func (g *Gossip) processGossip(ctx context.Context, msg Message) (Message, error
 }
 
 func (g *Gossip) processSync(sync Message) (ack Message, err error) {
-	digests, nodes := processDigests(g.state, sync.Digests)
+	digests, nodes := g.state.digest(sync.Digests)
 	return Message{Digests: digests, Nodes: nodes}, nil
 }
 
 func (g *Gossip) processAck(ack Message) (ack2 Message, err error) {
-	processNodes(g.state, ack.Nodes)
-	_, resNodes := processDigests(g.state, ack.Digests)
+	g.state.merge(ack.Nodes)
+	_, resNodes := g.state.digest(ack.Digests)
 	return Message{Nodes: resNodes}, nil
 }
 
 func (g *Gossip) processAck2(ack2 Message) (err error) {
-	processNodes(g.state, ack2.Nodes)
+	g.state.merge(ack2.Nodes)
 	return nil
 }
 
 type Message struct {
 	Digests node.Digests
 	Nodes   node.Group
-}
-
-func processNodes(state *State, other node.Group) (res node.Group) {
-	for otherID, otherNode := range other {
-		internalNode, ok := state.Nodes[otherID]
-		// If:
-		// 	1. otherNode's version is more recent than internal.
-		// 	2. We don't have other.
-		// Then:
-		// 	Replace internal with otherNode.
-		if !ok || otherNode.Heartbeat.OlderThan(*internalNode.Heartbeat) {
-			state.setNode(otherNode)
-			// If:
-			//  We have a new version that other,
-			// Then:
-			//	send our version back to the client.
-		} else if otherNode.Heartbeat.YoungerThan(*internalNode.Heartbeat) {
-			res[otherID] = otherNode
-		}
-	}
-	return res
-}
-
-func processDigests(state *State, digests node.Digests) (resDigests node.Digests, resNodes node.Group) {
-	resNodes = make(node.Group)
-	resDigests = make(node.Digests)
-	for _, dig := range digests {
-		internalNode, ok := state.Nodes[dig.ID]
-		// If:
-		// 	1. We have the internalNode and our version is more recent.
-		// Then:
-		// 	send it back to the client.
-		if ok && internalNode.Heartbeat.OlderThan(*dig.Heartbeat) {
-			resNodes[dig.ID] = internalNode
-		}
-		// If we don't have the internalNode, add it to the list of digests.
-		if !ok {
-			resDigests[dig.ID] = dig
-		}
-	}
-
-	// If:
-	// 1. we have a internalNode that the other internalNode doesn't know about.
-	// Then:
-	// 	send it back to the client.
-	for id, internalNode := range state.Nodes {
-		if _, ok := digests[id]; !ok {
-			resNodes[id] = internalNode
-		}
-	}
-
-	return resDigests, resNodes
 }
