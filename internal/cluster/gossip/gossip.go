@@ -48,19 +48,16 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 }
 
 func (g *Gossip) GossipOnce(ctx context.Context) error {
-	// Update the host heartbeat.
-	host := g.store.Host()
-	host.Heartbeat = host.Heartbeat.Increment()
-	g.store.Set(host)
-	peer := randomPeer(g.store.GetState())
+	g.incrementHostHeartbeat()
+	snap := g.store.GetState()
+	peer := randomPeer(snap)
 	if peer.Address == "" {
 		g.Logger.Warn("no healthy nodes to gossip with")
 		return nil
 	}
-	g.Logger.Debug("initiating gossip",
-		zap.Uint32("initiator", uint32(host.ID)),
+	g.Logger.Debug("gossip",
+		zap.Uint32("initiator", uint32(snap.HostID)),
 		zap.Uint32("peer", uint32(peer.ID)),
-		zap.Uint32("version", host.Heartbeat.Version),
 	)
 	return g.GossipOnceWith(ctx, peer.Address)
 
@@ -74,6 +71,16 @@ func (g *Gossip) GossipOnceWith(ctx context.Context, addr address.Address) error
 	}
 	_, err = g.Transport.Send(ctx, addr, g.ack(ack))
 	return err
+}
+
+func (g *Gossip) incrementHostHeartbeat() {
+	host := g.store.Host()
+	host.Heartbeat = host.Heartbeat.Increment()
+	g.store.Set(host)
+	g.Logger.Debug("host heartbeat",
+		zap.Uint32("version", host.Heartbeat.Version),
+		zap.Uint32("generation", host.Heartbeat.Generation),
+	)
 }
 
 func (g *Gossip) processGossip(ctx context.Context, msg Message) (Message, error) {
