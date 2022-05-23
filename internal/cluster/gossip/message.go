@@ -11,9 +11,6 @@ func (msg Message) variant() messageVariant {
 	if msg.Nodes == nil && msg.Digests != nil {
 		return messageVariantSync
 	}
-	if msg.Digests != nil && msg.Nodes != nil {
-		return messageVariantAck
-	}
 	if msg.Digests == nil && msg.Nodes != nil {
 		return messageVariantAck2
 	}

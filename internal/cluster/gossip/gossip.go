@@ -91,13 +91,11 @@ func (g *Gossip) processGossip(ctx context.Context, msg Message) (Message, error
 	switch msg.variant() {
 	case messageVariantSync:
 		return g.sync(msg), nil
-	case messageVariantAck:
-		return g.ack(msg), nil
 	case messageVariantAck2:
 		g.ack2(msg)
 		return Message{}, nil
 	default:
-		g.Logger.Panic("gossip received empty message")
+		g.Logger.Panic("gossip received invalid message type")
 		return Message{}, nil
 	}
 }
