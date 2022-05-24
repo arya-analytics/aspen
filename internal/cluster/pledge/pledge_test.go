@@ -1,6 +1,8 @@
 package pledge_test
 
-import "github.com/arya-analytics/aspen/internal/pledge"
+import (
+	"github.com/arya-analytics/aspen/internal/cluster/pledge"
+)
 
 import (
 	"context"

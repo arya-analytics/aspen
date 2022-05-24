@@ -3,8 +3,8 @@ package cluster_test
 import (
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
+	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/node"
-	"github.com/arya-analytics/aspen/internal/pledge"
 	"github.com/arya-analytics/x/address"
 	kvc "github.com/arya-analytics/x/kv"
 	kvmock "github.com/arya-analytics/x/kv/mock"

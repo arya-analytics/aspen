@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
-	pledge_ "github.com/arya-analytics/aspen/internal/pledge"
+	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"

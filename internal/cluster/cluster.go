@@ -3,9 +3,9 @@ package cluster
 import (
 	"context"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
+	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
-	pledge_ "github.com/arya-analytics/aspen/internal/pledge"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
