@@ -26,7 +26,7 @@ type Cluster interface {
 }
 
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening
-// address. A set of peer addresses (of other nodes in the cluster) must be provided when joining an existing cluster
+// address. A set of peer addresses (other nodes in the cluster) must be provided when joining an existing cluster
 // for the first time. If restarting a node that is already a member of a cluster, the peer addresses can be left empty;
 // Join will attempt to load the existing cluster state from storage (see Config.Storage and Config.StorageKey).
 // If provisioning a new cluster, ensure that all storage for previous clusters is removed and provide no peers.
@@ -56,7 +56,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 	} else if !s.Valid() && len(peers) == 0 {
 		c.Store.SetHost(node.Node{ID: 1, Address: addr})
 		pledge_.Arbitrate(c.Snapshot, c.Pledge)
-		cfg.Logger.Info("no peers provided, starting new cluster")
+		cfg.Logger.Info("no peers provided, bootstrapping new cluster")
 	} else {
 		pledge_.Arbitrate(c.Snapshot, c.Pledge)
 		cfg.Logger.Info("existing cluster found in storage. restarting activities.")

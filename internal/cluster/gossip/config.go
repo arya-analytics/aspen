@@ -7,9 +7,11 @@ import (
 	"time"
 )
 
+type Transport = transport.Unary[Message, Message]
+
 type Config struct {
 	Interval  time.Duration
-	Transport transport.Unary[Message, Message]
+	Transport Transport
 	Shutdown  shutdown.Shutdown
 	Logger    *zap.Logger
 }
