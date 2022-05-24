@@ -7,17 +7,8 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
-	"github.com/arya-analytics/x/transport"
 	"go.uber.org/zap"
-	"time"
 )
-
-type Config struct {
-	Interval  time.Duration
-	Transport transport.Unary[Message, Message]
-	Shutdown  shutdown.Shutdown
-	Logger    *zap.Logger
-}
 
 type Gossip struct {
 	Config
@@ -31,19 +22,13 @@ func New(store store.Store, cfg Config) *Gossip {
 }
 
 func (g *Gossip) Gossip(ctx context.Context) <-chan error {
-	t, errC := time.NewTicker(g.Interval), make(chan error)
-	g.Shutdown.Go(func(sig chan shutdown.Signal) error {
-		for {
-			select {
-			case <-sig:
-				return nil
-			case <-t.C:
-				if err := g.GossipOnce(ctx); err != nil {
-					errC <- err
-				}
-			}
-		}
-	})
+	errC := make(chan error)
+	g.Shutdown.GoTick(
+		g.Interval,
+		func() error { return g.GossipOnce(ctx) },
+		shutdown.WithContext(ctx),
+		shutdown.WithPipe(errC),
+	)
 	return errC
 }
 

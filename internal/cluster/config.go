@@ -10,19 +10,24 @@ import (
 )
 
 type Config struct {
-	// Storage
+	// Storage is a key-value storage backend for the cluster. Cluster will flush changes to its state to this backend
+	// based on Config.StorageFlushInterval. Join will also attempt to load an existing cluster from this backend.
+	// If Config.Storage is not provided, Cluster state will only be stored in memory.
 	Storage kv.KV
-	// StorageKey
+	// StorageKey is the key used to store the cluster state in the backend.
 	StorageKey []byte
-	// StorageFlushInterval
+	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to 0,
+	// the cluster state will be flushed every time a change is made.
 	StorageFlushInterval time.Duration
-	// Pledge
+	// Pledge is the configuration for pledging to the cluster upon a Join call. See the pledge package for more details
+	// on how to configure this.
 	Pledge pledge_.Config
-	// Shutdown
+	// Shutdown is used to shut down cluster activities gracefully.
 	Shutdown shutdown.Shutdown
-	// Logger
+	// Logger is the logger used by the cluster.
 	Logger *zap.Logger
-	// Gossip
+	// Gossip is the configuration for propagating Cluster state through gossip. See the gossip package for more details
+	// on how to configure this.
 	Gossip gossip.Config
 }
 
@@ -34,6 +39,7 @@ func (cfg Config) Merge(override Config) Config {
 	if cfg.Gossip.Logger == nil {
 		cfg.Gossip.Logger = cfg.Logger
 	}
+	cfg.Gossip = cfg.Gossip.Merge(override.Gossip)
 	return cfg
 }
 
