@@ -48,5 +48,6 @@ func DefaultConfig() Config {
 		Pledge:     pledge_.DefaultConfig(),
 		StorageKey: []byte("aspen.cluster"),
 		Logger:     zap.NewNop(),
+		Gossip:     gossip.DefaultConfig(),
 	}
 }
