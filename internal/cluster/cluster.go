@@ -1,3 +1,7 @@
+// Package cluster provides an interface for joining a cluster of nodes and exchanging state through an SI gossip model.
+// Nodes can join the cluster without needing to know all members. Cluster will automatically manage the membership of
+// new nodes by assigning them unique IDs and keeping them in sync with their peers. To Join a cluster, simply use
+// cluster.Join.
 package cluster
 
 import (
@@ -12,14 +16,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
 	// Snapshot returns a copy of the current cluster state. This snapshot is safe
 	// to modify, but is not guaranteed to remain up to date.
 	Snapshot() node.Group
-	// Host returns the host Node.
+	// Host returns the host Node (i.e. the node that Host is called on).
 	Host() node.Node
 }
 
+// Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening
+// address. A set of peer addresses (of other nodes in the cluster) must be provided when joining an existing cluster
+// for the first time. If restarting a node that is already a member of a cluster, the peer addresses can be left empty;
+// Join will attempt to load the existing cluster state from storage (see Config.Storage and Config.StorageKey).
+// If provisioning a new cluster, ensure that all storage for previous clusters is removed and provide no peers.
 func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 

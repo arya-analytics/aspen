@@ -87,8 +87,8 @@ var _ = Describe("Convergence", Serial, func() {
 					clusters = append(clusters, cluster)
 				}
 				Expect(sd.ShutdownAfter(values.convergenceThreshold)).To(Succeed())
-				for _, clus := range clusters {
-					Expect(clus.Snapshot()).To(HaveLen(values.clusterSize))
+				for _, cluster_ := range clusters {
+					Expect(cluster_.Snapshot()).To(HaveLen(values.clusterSize))
 				}
 			})
 		})
