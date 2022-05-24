@@ -56,7 +56,7 @@ func (c *core) Get(id node.ID) (node.Node, bool) {
 	return n, ok
 }
 
-// Host implements Store.
+// GetHost implements Store.
 func (c *core) GetHost() node.Node {
 	snap := c.Observable.GetState()
 	if n, ok := snap.Nodes[snap.HostID]; ok {

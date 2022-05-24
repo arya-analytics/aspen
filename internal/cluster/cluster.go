@@ -21,8 +21,8 @@ type Cluster interface {
 	// Snapshot returns a copy of the current cluster state. This snapshot is safe
 	// to modify, but is not guaranteed to remain up to date.
 	Snapshot() node.Group
-	// Host returns the host Node (i.e. the node that Host is called on).
-	Host() node.Node
+	// GetHost returns the host Node (i.e. the node that Host is called on).
+	GetHost() node.Node
 }
 
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening
