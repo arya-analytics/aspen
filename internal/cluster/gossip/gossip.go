@@ -58,6 +58,7 @@ func (g *Gossip) GossipOnce(ctx context.Context) error {
 	g.Logger.Debug("gossip",
 		zap.Uint32("initiator", uint32(snap.HostID)),
 		zap.Uint32("peer", uint32(peer.ID)),
+		zap.Int("stateSize", len(snap.Nodes)),
 	)
 	return g.GossipOnceWith(ctx, peer.Address)
 

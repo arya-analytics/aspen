@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
-	"github.com/arya-analytics/aspen/internal/pledge"
+	pledge_ "github.com/arya-analytics/aspen/internal/pledge"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"
@@ -17,7 +17,7 @@ type Config struct {
 	// StorageFlushInterval
 	StorageFlushInterval time.Duration
 	// Pledge
-	Pledge pledge.Config
+	Pledge pledge_.Config
 	// Shutdown
 	Shutdown shutdown.Shutdown
 	// Logger
@@ -33,7 +33,7 @@ func (cfg Config) Merge(override Config) Config {
 
 func DefaultConfig() Config {
 	return Config{
-		Pledge:     pledge.DefaultConfig(),
+		Pledge:     pledge_.DefaultConfig(),
 		StorageKey: []byte("aspen.cluster"),
 	}
 }

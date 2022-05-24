@@ -21,7 +21,11 @@ type Store interface {
 
 func _copy(s State) State { return State{Nodes: s.Nodes.Copy(), HostID: s.HostID} }
 
-func New() Store { return &core{Observable: store.NewObservable(_copy)} }
+func New() Store {
+	c := &core{Observable: store.ObservableWrap[State](store.New(_copy))}
+	c.Observable.SetState(State{Nodes: make(node.Group)})
+	return c
+}
 
 type State struct {
 	Nodes  node.Group

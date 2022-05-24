@@ -32,15 +32,24 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 	c := &cluster{Store: s, Config: cfg}
 
 	// If our store is empty or invalid, we need to boostrap the cluster.
-	if !s.Valid() {
+	if !s.Valid() && len(peers) != 0 {
+		cfg.Logger.Info("no existing cluster found in storage. pledging to cluster instead.")
 		id, err := pledge(ctx, peers, c)
 		if err != nil {
 			return nil, err
 		}
 		c.Store.SetHost(node.Node{ID: id, Address: addr})
-		// Gossip initial cluster state so we can contact it for
+		// Gossip initial cluster state, so we can contact it for
 		// information on other nodes instead of peers.
+		cfg.Logger.Info("gossiping initial state through peer addresses.")
 		gossipInitialState(ctx, c.Store, c.Config, peers)
+	} else if !s.Valid() && len(peers) == 0 {
+		c.Store.SetHost(node.Node{ID: 1, Address: addr})
+		pledge_.Arbitrate(c.Snapshot, c.Pledge)
+		cfg.Logger.Info("no peers provided, starting new cluster")
+	} else {
+		pledge_.Arbitrate(c.Snapshot, c.Pledge)
+		cfg.Logger.Info("existing cluster found in storage. restarting activities.")
 	}
 
 	gossip.New(s, c.Config.Gossip).Gossip(ctx)
