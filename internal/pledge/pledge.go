@@ -215,7 +215,7 @@ func (r *responsible) buildQuorum() (Group, error) {
 	if len(healthy) < size {
 		return Group{}, ErrQuorumUnreachable
 	}
-	return rand.MapSub(healthy, size), nil
+	return rand.SubMap(healthy, size), nil
 }
 
 func (r *responsible) idToPropose() ID {
