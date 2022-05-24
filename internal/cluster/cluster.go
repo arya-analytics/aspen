@@ -2,72 +2,85 @@ package cluster
 
 import (
 	"context"
+	"github.com/arya-analytics/aspen/internal/cluster/gossip"
+	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
-	"github.com/arya-analytics/aspen/internal/pledge"
+	pledge_ "github.com/arya-analytics/aspen/internal/pledge"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
-	"io"
+	"go.uber.org/zap"
 )
 
 type Cluster interface {
-	Storage
-	Snapshot
-}
-
-type Snapshot interface {
+	// Snapshot returns a copy of the current cluster state. This snapshot is safe
+	// to modify, but is not guaranteed to remain up to date.
 	Snapshot() node.Group
-}
-
-type Storage interface {
-	// Flush implements kv.Flush.
-	Flush(writer io.Writer) error
-	// Load implements kv.Load.
-	Load(reader io.Reader) error
+	// Host returns the host Node.
+	Host() node.Node
 }
 
 func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 
-	c, err := tryLoadFromStorage(cfg)
-	if err == nil {
-		return c, nil
-	}
-
-	id, err := pledge.Pledge(ctx, peers, c.Snapshot, cfg.Pledge)
-	if err != nil {
+	// Attempt to open the cluster store from KV.
+	s, err := openStore(cfg)
+	if err != nil && err != kv.ErrNotFound {
 		return nil, err
 	}
 
-	c.state.setNode(node.Node{ID: id, Address: addr})
+	c := &cluster{Store: s, Config: cfg}
 
-	g := &Gossip{state: c.state, Config: cfg}
+	// If our store is empty or invalid, we need to boostrap the cluster.
+	if !s.Valid() {
+		id, err := pledge(ctx, peers, c)
+		if err != nil {
+			return nil, err
+		}
+		c.Store.SetHost(node.Node{ID: id, Address: addr})
+		// Gossip initial cluster state so we can contact it for
+		// information on other nodes instead of peers.
+		gossipInitialState(ctx, c.Store, c.Config, peers)
+	}
 
-	g.Gossip(ctx)
+	gossip.New(s, c.Config.Gossip).Gossip(ctx)
 
 	return c, nil
 }
 
 type cluster struct {
 	Config
-	state *State
-}
-
-func (c *cluster) Load(reader io.Reader) error {
-	return nil
-}
-
-func (c *cluster) Flush(write io.Writer) error {
-	return nil
+	store.Store
 }
 
 func (c *cluster) Snapshot() node.Group {
-	return node.Group{}
+	return c.Store.GetState().Nodes
 }
 
-func tryLoadFromStorage(cfg Config) (*cluster, error) {
-	c := &cluster{Config: cfg}
-	if cfg.Storage == nil {
-		return nil, kv.ErrNotFound
+func openStore(openStore Config) (store.Store, error) {
+	s := store.New()
+	return s, kv.Load(openStore.Storage, openStore.StorageKey, s)
+}
+
+func pledge(ctx context.Context, peers []address.Address, c *cluster) (node.ID, error) {
+	candidates := func() node.Group { return c.Store.GetState().Nodes }
+	return pledge_.Pledge(ctx, peers, candidates, c.Config.Pledge)
+}
+
+func gossipInitialState(
+	ctx context.Context,
+	s store.Store,
+	cfg Config,
+	peers []address.Address,
+) {
+	g := gossip.New(s, cfg.Gossip)
+	nextAddr := iter.InfiniteSlice(peers)
+	for peerAddr := nextAddr(); peerAddr != ""; peerAddr = nextAddr() {
+		if err := g.GossipOnceWith(ctx, peerAddr); err != nil {
+			cfg.Logger.Error("failed to gossip with peer", zap.String("peer", string(peerAddr)), zap.Error(err))
+		}
+		if len(s.GetState().Nodes) > 1 {
+			break
+		}
 	}
-	return c, kv.Load(cfg.Storage, cfg.StorageKey, c)
 }

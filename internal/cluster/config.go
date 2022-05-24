@@ -6,6 +6,7 @@ import (
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Config struct {
@@ -13,6 +14,8 @@ type Config struct {
 	Storage kv.KV
 	// StorageKey
 	StorageKey []byte
+	// StorageFlushInterval
+	StorageFlushInterval time.Duration
 	// Pledge
 	Pledge pledge.Config
 	// Shutdown
