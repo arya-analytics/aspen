@@ -27,7 +27,13 @@ type Config struct {
 }
 
 func (cfg Config) Merge(override Config) Config {
+	if cfg.Pledge.Logger == nil {
+		cfg.Pledge.Logger = cfg.Logger
+	}
 	cfg.Pledge = cfg.Pledge.Merge(override.Pledge)
+	if cfg.Gossip.Logger == nil {
+		cfg.Gossip.Logger = cfg.Logger
+	}
 	return cfg
 }
 
@@ -35,5 +41,6 @@ func DefaultConfig() Config {
 	return Config{
 		Pledge:     pledge_.DefaultConfig(),
 		StorageKey: []byte("aspen.cluster"),
+		Logger:     zap.NewNop(),
 	}
 }

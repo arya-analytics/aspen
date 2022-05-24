@@ -76,17 +76,9 @@ var _ = Describe("Convergence", Serial, func() {
 						gossipT.Address,
 						rand.SubSlice[address.Address](addresses, values.peerAddrCount),
 						cluster.Config{
-							Logger: logger,
-							Pledge: pledge.Config{
-								Logger:    logger,
-								Transport: pledgeT,
-							},
-							Gossip: gossip.Config{
-								Logger:    logger,
-								Transport: gossipT,
-								Interval:  values.gossipInterval,
-								Shutdown:  sd,
-							},
+							Logger:  logger,
+							Pledge:  pledge.Config{Transport: pledgeT},
+							Gossip:  gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
 							Storage: kv,
 						},
 					)
