@@ -53,7 +53,7 @@ var _ = Describe("Convergence", func() {
 		net = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		logger = zap.NewNop()
 	})
-	p := alamos.NewParametrize(alamos.IterVars[convergenceVars](progressiveConvergence))
+	p := alamos.NewParametrize(alamos.IterVars(progressiveConvergence))
 	p.Template(func(i int, values convergenceVars) {
 		It(fmt.Sprintf("Should converge store across %v nodes in %v cycles",
 			values.nodeCount,
@@ -72,7 +72,7 @@ var _ = Describe("Convergence", func() {
 				stores  []store.Store
 			)
 			for _, n := range group {
-				subNodes := rand.MapSub(group.WhereNot(n.ID), values.initialViewCount)
+				subNodes := rand.SubMap(group.WhereNot(n.ID), values.initialViewCount)
 				subNodes[n.ID] = n
 				s := store.New()
 				s.SetState(store.State{Nodes: subNodes, HostID: n.ID})
