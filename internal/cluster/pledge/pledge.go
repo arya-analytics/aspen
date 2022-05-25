@@ -22,7 +22,7 @@ package pledge
 import (
 	"context"
 	"errors"
-	. "github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
 	"github.com/arya-analytics/x/iter"
@@ -50,7 +50,7 @@ var (
 // unique ID, and allowed to Arbitrate in future proposals. See algorithm in package level documentation for
 // implementation details. Although IDs are guaranteed to be unique, they are not guarantee to be sequential. Pledge
 // will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
-func Pledge(ctx context.Context, peers []address.Address, candidates func() Group, cfg Config) (id ID, err error) {
+func Pledge(ctx context.Context, peers []address.Address, candidates func() node.Group, cfg Config) (id node.ID, err error) {
 	if len(peers) == 0 {
 		return id, ErrNoPeers
 	}
@@ -89,11 +89,11 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() Grou
 
 // Arbitrate registers a node to arbitrate future pledges. When a node calls Arbitrate, it will be made available
 // to become a Responsible or Juror node. Any node that calls arbitrate should also be a member of candidates.
-func Arbitrate(candidates func() Group, cfg Config) {
+func Arbitrate(candidates func() node.Group, cfg Config) {
 	cfg.candidates = candidates
 	cfg = cfg.Merge(DefaultConfig())
 	j := &juror{Config: cfg}
-	cfg.Transport.Handle(func(ctx context.Context, id ID) (ID, error) {
+	cfg.Transport.Handle(func(ctx context.Context, id node.ID) (node.ID, error) {
 		if id == 0 {
 			t := &responsible{Config: cfg}
 			return t.propose(ctx)
@@ -102,10 +102,12 @@ func Arbitrate(candidates func() Group, cfg Config) {
 	})
 }
 
+type Transport = transport.Unary[node.ID, node.ID]
+
 // Config is used for configuring a pledge based membership network.
 type Config struct {
 	// Transport is used for sending pledge information over the network.
-	Transport transport.Unary[ID, ID]
+	Transport Transport
 	// RequestTimeout is the timeout for a peer to respond to a pledge or proposal request.
 	// If the request is not responded to before the timeout, a new jury will be formed and the request will be retried.
 	RequestTimeout time.Duration
@@ -119,26 +121,26 @@ type Config struct {
 	// MaxProposals is the maximum number of proposals a responsible will make to a quorum before giving up.
 	MaxProposals int
 	// candidates is a Group of nodes to contact for as candidates for the formation of a jury.
-	candidates func() Group
+	candidates func() node.Group
 	// peerAddresses is a set of addresses a pledge can contact.
 	peerAddresses []address.Address
 }
 
-func (cfg Config) Merge(override Config) Config {
+func (cfg Config) Merge(def Config) Config {
 	if cfg.PledgeBaseRetry == 0 {
-		cfg.PledgeBaseRetry = override.PledgeBaseRetry
+		cfg.PledgeBaseRetry = def.PledgeBaseRetry
 	}
 	if cfg.PledgeRetryScale == 0 {
-		cfg.PledgeRetryScale = override.PledgeRetryScale
+		cfg.PledgeRetryScale = def.PledgeRetryScale
 	}
 	if cfg.RequestTimeout == 0 {
-		cfg.RequestTimeout = override.RequestTimeout
+		cfg.RequestTimeout = def.RequestTimeout
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = override.Logger
+		cfg.Logger = def.Logger
 	}
 	if cfg.MaxProposals == 0 {
-		cfg.MaxProposals = override.MaxProposals
+		cfg.MaxProposals = def.MaxProposals
 	}
 	return cfg
 }
@@ -157,11 +159,11 @@ func DefaultConfig() Config {
 
 type responsible struct {
 	Config
-	candidates  Group
-	_proposedID ID
+	candidates  node.Group
+	_proposedID node.ID
 }
 
-func (r *responsible) propose(ctx context.Context) (id ID, err error) {
+func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
 	r.Logger.Debug("responsible received pledge. starting proposal process.")
 	var propC int
 	for propC = 0; propC < r.MaxProposals; propC++ {
@@ -208,17 +210,17 @@ func (r *responsible) propose(ctx context.Context) (id ID, err error) {
 
 func (r *responsible) refreshCandidates() { r.candidates = r.Config.candidates() }
 
-func (r *responsible) buildQuorum() (Group, error) {
-	presentCandidates := r.candidates.Where(func(_ ID, n Node) bool { return n.State != StateLeft })
+func (r *responsible) buildQuorum() (node.Group, error) {
+	presentCandidates := r.candidates.WhereActive()
 	size := len(presentCandidates)/2 + 1
-	healthy := presentCandidates.WhereState(StateHealthy)
+	healthy := presentCandidates.WhereState(node.StateHealthy)
 	if len(healthy) < size {
-		return Group{}, ErrQuorumUnreachable
+		return node.Group{}, ErrQuorumUnreachable
 	}
 	return rand.SubMap(healthy, size), nil
 }
 
-func (r *responsible) idToPropose() ID {
+func (r *responsible) idToPropose() node.ID {
 	if r._proposedID == 0 {
 		r._proposedID = filter.MaxMapKey(r.candidates) + 1
 	} else {
@@ -227,14 +229,14 @@ func (r *responsible) idToPropose() ID {
 	return r._proposedID
 }
 
-func (r *responsible) consultQuorum(ctx context.Context, id ID, quorum Group) error {
+func (r *responsible) consultQuorum(ctx context.Context, id node.ID, quorum node.Group) error {
 	reqCtx, cancel := context.WithTimeout(ctx, r.RequestTimeout)
 	defer cancel()
 	wg := errgroup.Group{}
 	for _, n := range quorum {
-		node := n
+		n_ := n
 		wg.Go(func() error {
-			_, err := r.Transport.Send(reqCtx, node.Address, id)
+			_, err := r.Transport.Send(reqCtx, n_.Address, id)
 			// If any node returns an error, we need to retry the entire responsible,
 			// so we need to cancel all running requests.
 			if err != nil {
@@ -251,10 +253,10 @@ func (r *responsible) consultQuorum(ctx context.Context, id ID, quorum Group) er
 type juror struct {
 	Config
 	mu        sync.Mutex
-	approvals []ID
+	approvals []node.ID
 }
 
-func (j *juror) verdict(ctx context.Context, id ID) (err error) {
+func (j *juror) verdict(ctx context.Context, id node.ID) (err error) {
 	logID := zap.Uint32("id", uint32(id))
 	j.Logger.Debug("juror received proposal. making verdict.", logID)
 	if ctx.Err() != nil {

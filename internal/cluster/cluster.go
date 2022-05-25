@@ -33,7 +33,7 @@ type Cluster interface {
 func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 
-	// Attempt to open the cluster store from KV.
+	// Attempt to open the cluster store from kv.
 	s, err := openStore(cfg)
 	if err != nil && err != kv.ErrNotFound {
 		return nil, err

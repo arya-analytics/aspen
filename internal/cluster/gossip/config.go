@@ -16,12 +16,12 @@ type Config struct {
 	Logger    *zap.Logger
 }
 
-func (cfg Config) Merge(override Config) Config {
+func (cfg Config) Merge(def Config) Config {
 	if cfg.Interval == 0 {
-		cfg.Interval = override.Interval
+		cfg.Interval = def.Interval
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = override.Logger
+		cfg.Logger = def.Logger
 	}
 	return cfg
 }

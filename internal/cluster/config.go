@@ -31,15 +31,15 @@ type Config struct {
 	Gossip gossip.Config
 }
 
-func (cfg Config) Merge(override Config) Config {
+func (cfg Config) Merge(def Config) Config {
 	if cfg.Pledge.Logger == nil {
 		cfg.Pledge.Logger = cfg.Logger
 	}
-	cfg.Pledge = cfg.Pledge.Merge(override.Pledge)
+	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 	if cfg.Gossip.Logger == nil {
 		cfg.Gossip.Logger = cfg.Logger
 	}
-	cfg.Gossip = cfg.Gossip.Merge(override.Gossip)
+	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
 	return cfg
 }
 

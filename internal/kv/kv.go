@@ -1,8 +1,9 @@
 package kv
 
 import (
+	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/node"
-	"github.com/arya-analytics/x/kv"
+	kv_ "github.com/arya-analytics/x/kv"
 )
 
 // Writer is a writable key-value store.
@@ -15,13 +16,33 @@ type Writer interface {
 	// Writer represents the same interface to a typical key-value store.
 	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
 	// the host.
-	kv.Writer
+	kv_.Writer
 }
 
-//Reader is a readable key-value store.
-type Reader interface{ kv.Reader }
+type (
+	//Reader is a readable key-value store.
+	Reader = kv_.Reader
+	// Closer is a key-value store that can be closed. Block until all pending
+	// operations have persisted to disk.
+	Closer = kv_.Closer
+)
 
-type DB interface {
+// KV is a readable and writable key-value store.
+type KV interface {
 	Writer
 	Reader
+	kv_.Closer
+}
+
+type kv struct {
+	kv_.KV
+	Config
+}
+
+func New(clust cluster.Cluster, kvEngine kv_.KV, cfg Config) KV {
+	return &kv{KV: kvEngine, Config: cfg.Merge(DefaultConfig())}
+}
+
+func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
+	return nil
 }

@@ -14,6 +14,10 @@ func (n Group) WhereNot(ids ...ID) Group {
 	return n.Where(func(id ID, _ Node) bool { return !filter.ElementOf(ids, id) })
 }
 
+func (n Group) WhereActive() Group {
+	return n.Where(func(_ ID, n Node) bool { return n.State != StateLeft })
+}
+
 func (n Group) Where(cond func(ID, Node) bool) Group { return filter.Map(n, cond) }
 
 func (n Group) Addresses() (addresses []address.Address) {

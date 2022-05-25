@@ -27,7 +27,7 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 		g.Interval,
 		func() error { return g.GossipOnce(ctx) },
 		shutdown.WithContext(ctx),
-		shutdown.WithPipe(errC),
+		shutdown.WithErrPipe(errC),
 	)
 	return errC
 }
