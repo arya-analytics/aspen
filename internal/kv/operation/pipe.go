@@ -6,11 +6,11 @@ import (
 )
 
 func NewSegment(kv kv.KV) confluence.Segment[Operation] {
-	comp := &confluence.Composite[Operation]{}
-	_ = comp.RouteInletTo("version")
-	comp.SetSegment("version", newVersionSegment(kv))
-	_ = comp.Route("version", "persist", 1)
-	comp.SetSegment("persist", newPersistSegment(kv))
-	_ = comp.RouteOutletFrom("persist")
-	return comp
+	pipe := confluence.NewPipeline[Operation]()
+	_ = pipe.RouteInletTo("version")
+	pipe.Segment("version", newVersionSegment(kv))
+	pipe.Segment("persist", newPersistSegment(kv))
+	_ = pipe.Route(confluence.UnaryRouter[Operation]{FromAddr: "version", ToAddr: "persist", Capacity: 1})
+	_ = pipe.RouteOutletFrom("persist")
+	return pipe
 }

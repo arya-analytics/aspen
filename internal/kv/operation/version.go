@@ -33,7 +33,7 @@ func (vc *versionSegment) filter(op Operation) bool {
 }
 
 func (vc *versionSegment) olderVersion(op Operation) bool {
-	if op.Error == nil {
+	if op.Error != nil {
 		return true
 	}
 	vc.state.mu.RLock()
@@ -50,7 +50,7 @@ func (vc *versionSegment) olderVersion(op Operation) bool {
 			return false
 		}
 	}
-	return ver.YoungerThan(op.Version)
+	return ver.OlderThan(op.Version)
 }
 
 func (vc *versionSegment) setVersion(leaseholder node.ID, version version.Counter) {

@@ -7,24 +7,24 @@ import (
 
 type persistSegment struct {
 	kv kv.KV
-	confluence.CoreSink[Operation]
+	confluence.Transform[Operation]
 }
 
 func newPersistSegment(kv kv.KV) confluence.Segment[Operation] {
 	ps := &persistSegment{kv: kv}
-	ps.CoreSink.Sink = ps.persist
+	ps.Transform.Transform = ps.persist
 	return ps
 }
 
-func (ps *persistSegment) persist(op Operation) error {
-	if op.Error != nil {
-		return op.Error
-	}
+func (ps *persistSegment) persist(op Operation) Operation {
 	var err error
 	if op.Variant == Set {
 		err = ps.kv.Set(op.Key, op.Value)
 	} else {
 		err = ps.kv.Delete(op.Key)
 	}
-	return err
+	if err != nil {
+		panic(err)
+	}
+	return op
 }
