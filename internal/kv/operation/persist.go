@@ -1,24 +1,24 @@
 package operation
 
 import (
+	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/pipe"
-	"github.com/arya-analytics/x/shutdown"
 )
 
 type persistSegment struct {
 	kv kv.KV
-	sd shutdown.Shutdown
+	confluence.CoreSink[Operation]
 }
 
-func (ps *persistSegment) Feed(in <-chan Operation) <-chan Operation {
-	return pipe.Transform(in, ps.sd, ps.persist)
-
+func newPersistSegment(kv kv.KV) confluence.Segment[Operation] {
+	ps := &persistSegment{kv: kv}
+	ps.CoreSink.Sink = ps.persist
+	return ps
 }
 
-func (ps *persistSegment) persist(op Operation) Operation {
+func (ps *persistSegment) persist(op Operation) error {
 	if op.Error != nil {
-		return op
+		return op.Error
 	}
 	var err error
 	if op.Variant == Set {
@@ -26,8 +26,5 @@ func (ps *persistSegment) persist(op Operation) Operation {
 	} else {
 		err = ps.kv.Delete(op.Key)
 	}
-	if err != nil {
-		op.Error = err
-	}
-	return op
+	return err
 }

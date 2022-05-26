@@ -2,9 +2,8 @@ package operation
 
 import (
 	"github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/pipe"
-	"github.com/arya-analytics/x/shutdown"
 	"github.com/arya-analytics/x/version"
 	"sync"
 )
@@ -15,19 +14,22 @@ type versionSegment struct {
 		mu       sync.RWMutex
 		versions map[node.ID]version.Counter
 	}
-	shutdown shutdown.Shutdown
+	confluence.Filter[Operation]
 }
 
-func (vc *versionSegment) Feed(in <-chan Operation) <-chan Operation {
-	return pipe.Transform(in, vc.shutdown, vc.transform)
+func newVersionSegment(kv kv.KV) confluence.Segment[Operation] {
+	s := &versionSegment{kv: kv}
+	s.state.versions = make(map[node.ID]version.Counter)
+	s.Filter.Filter = s.filter
+	return s
 }
 
-func (vc *versionSegment) transform(op Operation) Operation {
-	if !vc.olderVersion(op) {
-		return op
+func (vc *versionSegment) filter(op Operation) bool {
+	if vc.olderVersion(op) {
+		vc.setVersion(op.Leaseholder, op.Version)
+		return true
 	}
-	vc.setVersion(op.Leaseholder, op.Version)
-	return op
+	return false
 }
 
 func (vc *versionSegment) olderVersion(op Operation) bool {
