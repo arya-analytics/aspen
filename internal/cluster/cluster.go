@@ -1,6 +1,6 @@
 // Package cluster provides an interface for joining a cluster of nodes and exchanging state through an SI gossip model.
 // Nodes can join the cluster without needing to know all members. Cluster will automatically manage the membership of
-// new nodes by assigning them unique IDs and keeping them in sync with their peers. To Join a cluster, simply use
+// new nodes by assigning them unique IDs and keeping them in sync with their peers. ToAddr Join a cluster, simply use
 // cluster.Join.
 package cluster
 
@@ -23,6 +23,8 @@ type Cluster interface {
 	Snapshot() node.Group
 	// GetHost returns the host Node (i.e. the node that Host is called on).
 	GetHost() node.Node
+	// Get returns the Node with the given ID.
+	Get(id node.ID) (node.Node, bool)
 }
 
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening
@@ -72,9 +74,9 @@ type cluster struct {
 	store.Store
 }
 
-func (c *cluster) Snapshot() node.Group {
-	return c.Store.GetState().Nodes
-}
+func (c *cluster) Snapshot() node.Group { return c.Store.GetState().Nodes }
+
+func (c *cluster) Get(id node.ID) (node.Node, bool) { return c.Store.Get(id) }
 
 func openStore(openStore Config) (store.Store, error) {
 	s := store.New()

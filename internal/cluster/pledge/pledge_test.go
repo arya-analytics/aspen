@@ -182,7 +182,7 @@ var _ = Describe("Member", func() {
 				Expect(id).To(Equal(node.ID(11)))
 			})
 		})
-		Context("Too Few Healthy Nodes To Form a Quorum", func() {
+		Context("Too Few Healthy Nodes ToAddr Form a Quorum", func() {
 			It("Should return an ErrQuorumUnreachable", func() {
 				var (
 					nodes         = make(node.Group)

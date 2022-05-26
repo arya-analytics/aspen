@@ -1,7 +1,7 @@
 // Package pledge provides a system for pledging a node to a jury of candidates. The pledge uses quorum consensus
 // to assign the node a unique ID.
 //
-// To pledge a new node to a jury, call Pledge() with a set of peer addresses. To register a node as a candidate,
+// ToAddr pledge a new node to a jury, call Pledge() with a set of peer addresses. ToAddr register a node as a candidate,
 // use Arbitrate().
 //
 // Vocabulary:

@@ -33,21 +33,14 @@ func (vc *versionSegment) filter(op Operation) bool {
 }
 
 func (vc *versionSegment) olderVersion(op Operation) bool {
-	if op.Error != nil {
-		return true
-	}
 	vc.state.mu.RLock()
 	defer vc.state.mu.RUnlock()
 	ver, ok := vc.state.versions[op.Leaseholder]
 	if !ok {
 		var err error
 		ver, err = vc.getFromKV(op.Key)
-		if err == kv.ErrNotFound {
-			return true
-		}
 		if err != nil {
-			op.Error = err
-			return false
+			return err == kv.ErrNotFound
 		}
 	}
 	return ver.OlderThan(op.Version)

@@ -15,6 +15,8 @@ const (
 	Delete
 )
 
+type Executor func(op Operation) error
+
 type Operation struct {
 	Key         []byte
 	Value       []byte
@@ -52,4 +54,12 @@ const key = "op"
 
 func Key(key []byte) (opKey []byte, err error) {
 	return kv.CompositeKey(key, key)
+}
+
+func Load(kve kv.Reader, key []byte) (op Operation, err error) {
+	opKey, err := Key(key)
+	if err != nil {
+		return op, err
+	}
+	return op, kv.Load(kve, opKey, &op)
 }
