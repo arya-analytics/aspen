@@ -13,19 +13,22 @@ import (
 
 var _ = Describe("Operation", func() {
 	var (
-		kv kv.KV
+		kve     kv.KV
+		segment confluence.Segment[operation.Operation]
+		inlet   confluence.Stream[operation.Operation]
+		outlet  confluence.Stream[operation.Operation]
 	)
 	BeforeEach(func() {
-		kv = mockkv.New()
+		kve = mockkv.New()
+		segment = operation.NewSegment(kve)
+		inlet = confluence.NewStream[operation.Operation](3)
+		outlet = confluence.NewStream[operation.Operation](3)
+		segment.InFrom(inlet)
+		segment.OutTo(outlet)
 	})
 	Describe("Pipe", func() {
 		Describe("Version filter", func() {
 			It("Should filter out old operations", func() {
-				segment := operation.NewSegment(kv)
-				inlet, outlet := confluence.NewStream[operation.Operation](3),
-					confluence.NewStream[operation.Operation](3)
-				segment.InFrom(inlet)
-				segment.OutTo(outlet)
 				ctx := confluence.DefaultContext()
 				segment.Flow(ctx)
 				inlet.Inlet() <- operation.Operation{
@@ -45,10 +48,36 @@ var _ = Describe("Operation", func() {
 				op := <-outlet.Outlet()
 				Expect(op.Value).To(Equal([]byte("value")))
 				Expect(ctx.Shutdown.ShutdownAfter(1 * time.Millisecond)).To(Succeed())
-				value, err := kv.Get([]byte("key"))
+				value, err := kve.Get([]byte("key"))
 				Expect(err).To(BeNil())
 				Expect(value).To(Equal([]byte("value")))
 			})
+		})
+	})
+	Describe("Persisting operation metadata", func() {
+		It("Should persist metadata correctly", func() {
+			ctx := confluence.DefaultContext()
+			segment.Flow(ctx)
+			inlet.Inlet() <- operation.Operation{
+				Key:         []byte("key"),
+				Value:       []byte("value"),
+				Version:     version.Counter(1),
+				Variant:     operation.Set,
+				Leaseholder: 1,
+			}
+			inlet.Inlet() <- operation.Operation{
+				Key:     []byte("key"),
+				Variant: operation.Delete,
+				Version: version.Counter(2),
+			}
+			op := <-outlet.Outlet()
+			Expect(op.Value).To(Equal([]byte("value")))
+			Expect(ctx.Shutdown.ShutdownAfter(1 * time.Millisecond)).To(Succeed())
+			key, err := operation.Key([]byte("key"))
+			Expect(err).To(BeNil())
+			oOp := operation.Operation{}
+			Expect(kv.Load(kve, key, &oOp)).To(Succeed())
+			Expect(oOp.Version).To(Equal(version.Counter(2)))
 		})
 	})
 })

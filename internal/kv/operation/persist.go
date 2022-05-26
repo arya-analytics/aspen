@@ -26,5 +26,12 @@ func (ps *persistSegment) persist(op Operation) Operation {
 	if err != nil {
 		panic(err)
 	}
+	key, err := Key(op.Key)
+	if err != nil {
+		panic(err)
+	}
+	if err := kv.Flush(ps.kv, key, op); err != nil {
+		panic(err)
+	}
 	return op
 }

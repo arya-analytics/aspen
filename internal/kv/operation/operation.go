@@ -27,7 +27,6 @@ type Operation struct {
 // Load implements the kv.Loader interface.
 func (o *Operation) Load(r io.Reader) error {
 	c := errutil.NewCatchRead(r)
-	c.Read(&o.Key)
 	c.Read(&o.Variant)
 	c.Read(&o.Version)
 	c.Read(&o.Leaseholder)
@@ -35,9 +34,8 @@ func (o *Operation) Load(r io.Reader) error {
 }
 
 // Flush implements the kv.Flusher interface.
-func (o *Operation) Flush(w io.Writer) error {
+func (o Operation) Flush(w io.Writer) error {
 	c := errutil.NewCatchWrite(w)
-	c.Write(o.Key)
 	c.Write(o.Variant)
 	c.Write(o.Version)
 	c.Write(o.Leaseholder)
