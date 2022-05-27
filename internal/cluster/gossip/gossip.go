@@ -17,7 +17,7 @@ type Gossip struct {
 
 func New(store store.Store, cfg Config) *Gossip {
 	g := &Gossip{Config: cfg, store: store}
-	g.Transport.Handle(g.processGossip)
+	g.Transport.Handle(g.process)
 	return g
 }
 
@@ -35,7 +35,7 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 func (g *Gossip) GossipOnce(ctx context.Context) error {
 	g.incrementHostHeartbeat()
 	snap := g.store.GetState()
-	peer := randomPeer(snap)
+	peer := RandomPeer(snap)
 	if peer.Address == "" {
 		g.Logger.Warn("no healthy nodes to gossip with")
 		return nil
@@ -69,21 +69,18 @@ func (g *Gossip) incrementHostHeartbeat() {
 	)
 }
 
-func (g *Gossip) processGossip(ctx context.Context, msg Message) (Message, error) {
+func (g *Gossip) process(ctx context.Context, msg Message) (Message, error) {
 	if ctx.Err() != nil {
 		return Message{}, ctx.Err()
 	}
-
 	switch msg.variant() {
 	case messageVariantSync:
 		return g.sync(msg), nil
 	case messageVariantAck2:
 		g.ack2(msg)
 		return Message{}, nil
-	default:
-		g.Logger.Panic("gossip received invalid message type")
-		return Message{}, nil
 	}
+	panic("invalid message type")
 }
 
 func (g *Gossip) sync(sync Message) (ack Message) {
@@ -136,6 +133,6 @@ func (g *Gossip) ack2(ack2 Message) {
 	g.store.Merge(ack2.Nodes)
 }
 
-func randomPeer(snap store.State) node.Node {
+func RandomPeer(snap store.State) node.Node {
 	return rand.MapValue(snap.Nodes.WhereState(node.StateHealthy).WhereNot(snap.HostID))
 }

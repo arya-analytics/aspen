@@ -34,7 +34,7 @@ type Leaseholder struct {
 
 func New(cfg Config) *Leaseholder {
 	lh := &Leaseholder{Config: cfg}
-	lh.host = lh.Cluster.GetHost().ID
+	lh.host = lh.Cluster.Host().ID
 	lh.Transport.Handle(lh.handle)
 	return lh
 }
@@ -95,7 +95,7 @@ func (l *Leaseholder) getLease(key []byte) (node.ID, error) {
 }
 
 func (l *Leaseholder) forward(op operation.Operation) error {
-	n, ok := l.Cluster.Get(op.Leaseholder)
+	n, ok := l.Cluster.Member(op.Leaseholder)
 	if !ok {
 		return kv_.ErrNotFound
 	}

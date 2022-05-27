@@ -15,6 +15,13 @@ const (
 	Delete
 )
 
+type State byte
+
+const (
+	Infected State = iota
+	Recovered
+)
+
 type Executor func(op Operation) error
 
 type Operation struct {
@@ -23,6 +30,7 @@ type Operation struct {
 	Variant     Variant
 	Version     version.Counter
 	Leaseholder node.ID
+	State       State
 	Error       error
 }
 

@@ -54,7 +54,7 @@ var _ = Describe("Join", func() {
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(clusterOne.GetHost().ID).To(Equal(node.ID(1)))
+		Expect(clusterOne.Host().ID).To(Equal(node.ID(1)))
 
 		By("Pledging a new node to the cluster")
 		gossipT2 := gossipNet.Route("")
@@ -79,12 +79,12 @@ var _ = Describe("Join", func() {
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(clusterTwo.GetHost().ID).To(Equal(node.ID(2)))
+		Expect(clusterTwo.Host().ID).To(Equal(node.ID(2)))
 
 		By("Converging cluster state through gossip")
 		time.Sleep(300 * time.Millisecond)
 		Expect(sd.Shutdown()).To(Succeed())
-		Expect(clusterOne.Snapshot()).To(HaveLen(2))
-		Expect(clusterTwo.Snapshot()).To(HaveLen(2))
+		Expect(clusterOne.Members()).To(HaveLen(2))
+		Expect(clusterTwo.Members()).To(HaveLen(2))
 	})
 })

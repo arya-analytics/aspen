@@ -22,7 +22,7 @@ type Store interface {
 	Set(node.Node)
 	// Get returns a node from state. Returns false if the node is not found.
 	Get(node.ID) (node.Node, bool)
-	// Merge merges a node.Group into State.Nodes by selecting nodes from group with heartbeats
+	// Merge merges a node.Group into Stac.Nodes by selecting nodes from group with heartbeats
 	// that are either not in State or are older than in State.
 	Merge(group node.Group)
 	// Valid returns true if the store is valid i.e. State.HostID has been set.

@@ -20,7 +20,7 @@ var _ = Describe("Store", func() {
 			Expect(s.GetState().Nodes).ToNot(BeNil())
 		})
 	})
-	Describe("Set and Get", func() {
+	Describe("Set and Member", func() {
 		It("Should set a node in store", func() {
 			s.Set(node.Node{ID: 1})
 			n, ok := s.Get(1)
@@ -56,7 +56,7 @@ var _ = Describe("Store", func() {
 			Expect(s.Valid()).To(BeTrue())
 		})
 	})
-	Describe("GetHost", func() {
+	Describe("Host", func() {
 		It("Should set and get the host correctly", func() {
 			s.SetHost(node.Node{ID: 1})
 			Expect(s.GetHost().ID).To(Equal(node.ID(1)))

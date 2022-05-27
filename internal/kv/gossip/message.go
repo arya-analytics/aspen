@@ -21,9 +21,28 @@ const (
 	StateRecovered
 )
 
-type Operation struct {
-	operation.Operation
-	State State
+type Operation = operation.Operation
+
+type Message struct {
+	Feedback   []Feedback
+	Operations Operations
 }
 
-type Transport = transport.Unary[Operation, Feedback]
+func (msg Message) variant() messageVariant {
+	if msg.Feedback == nil && msg.Operations != nil {
+		return messageVariantSync
+	}
+	if msg.Feedback != nil && msg.Operations == nil {
+		return messageVariantAck2
+	}
+	panic("invalid message")
+}
+
+type Transport = transport.Unary[Message, Message]
+
+type messageVariant byte
+
+const (
+	messageVariantSync messageVariant = iota
+	messageVariantAck2
+)
