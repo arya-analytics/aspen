@@ -7,7 +7,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	kvc "github.com/arya-analytics/x/kv"
-	kvmock "github.com/arya-analytics/x/kv/mock"
+	kvmock "github.com/arya-analytics/x/kv/kvmock"
 	"github.com/arya-analytics/x/shutdown"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"

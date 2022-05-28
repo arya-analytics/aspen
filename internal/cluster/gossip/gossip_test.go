@@ -13,7 +13,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 )
 
-var _ = Describe("Gossip", func() {
+var _ = Describe("OperationSender", func() {
 	var (
 		net    *tmock.Network[gossip.Message, gossip.Message]
 		logger *zap.Logger

@@ -15,6 +15,8 @@ replace github.com/arya-analytics/x v0.0.0-20220516233935-c9dbaa7263d1 => ./x
 
 require (
 	github.com/DataDog/zstd v1.4.5 // indirect
+	github.com/bits-and-blooms/bitset v1.2.2 // indirect
+	github.com/bits-and-blooms/bloom/v3 v3.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cockroachdb/errors v1.8.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect

@@ -9,7 +9,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/alamos"
 	kvc "github.com/arya-analytics/x/kv"
-	kvmock "github.com/arya-analytics/x/kv/mock"
+	kvmock "github.com/arya-analytics/x/kv/kvmock"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
 	tmock "github.com/arya-analytics/x/transport/mock"

@@ -56,7 +56,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 			return nil, err
 		}
 		c.Store.SetHost(node.Node{ID: id, Address: addr})
-		// Gossip initial cluster state, so we can contact it for
+		// operationSender initial cluster state, so we can contact it for
 		// information on other nodes instead of peers.
 		cfg.Logger.Info("gossiping initial state through peer addresses.")
 		gossipInitialState(ctx, c.Store, c.Config, peers)
