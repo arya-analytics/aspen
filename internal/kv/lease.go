@@ -29,7 +29,7 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 	return lp
 }
 
-func (lp *leaseProxy) _switch(batch Batch) address.Address {
+func (lp *leaseProxy) _switch(_ confluence.Context, batch Batch) address.Address {
 	if len(batch.Operations) != 1 {
 		panic("cannot process more than one op at a time")
 	}

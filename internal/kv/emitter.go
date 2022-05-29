@@ -22,10 +22,12 @@ func newEmitter(cfg Config) Segment {
 	return s
 }
 
-func (u *emitter) Store(batch Batch) {
+func (u *emitter) Store(_ confluence.Context, batch Batch) {
 	snap := u.Observable.GetState()
 	snap.Merge(batch.Operations)
 	u.Observable.SetState(snap)
 }
 
-func (u *emitter) Emit() Batch { return Batch{Operations: u.Observable.GetState().Operations()} }
+func (u *emitter) Emit(_ confluence.Context) Batch {
+	return Batch{Operations: u.Observable.GetState().Operations()}
+}

@@ -30,11 +30,11 @@ type operationSender struct {
 
 func newOperationSender(cfg Config) Segment {
 	os := &operationSender{Config: cfg}
-	os.Transform = os.transform
-
+	os.Transform.Transform = os.transform
+	return os
 }
 
-func (g *operationSender) transform(ctx confluence.Context, batch Batch) Batch {
+func (g *operationSender) transform(ctx confluence.Context, batch Batch) (Batch, bool) {
 	snap := g.Cluster.GetState()
 	peer := gossip.RandomPeer(snap)
 	if peer.Address == "" {
@@ -49,7 +49,7 @@ func (g *operationSender) transform(ctx confluence.Context, batch Batch) Batch {
 	if err != nil {
 		ctx.ErrC <- err
 	}
-	return Batch{Operations: ack.Operations, Sender: ack.Sender}
+	return Batch{Operations: ack.Operations, Sender: ack.Sender}, true
 }
 
 type operationReceiver struct {
@@ -94,16 +94,16 @@ func (f *feedbackSender) sink(ctx confluence.Context, batch Batch) {
 	}
 }
 
-type feedbackRecevier struct {
+type feedbackReceiver struct {
 	Config
 	confluence.CoreSource[Batch]
 }
 
-func newFeedbackReceiver(cfg Config) Segment { return &feedbackRecevier{Config: cfg} }
+func newFeedbackReceiver(cfg Config) Segment { return &feedbackReceiver{Config: cfg} }
 
-func (f *feedbackRecevier) Flow(ctx confluence.Context) { f.FeedbackTransport.Handle(f.handle) }
+func (f *feedbackReceiver) Flow(ctx confluence.Context) { f.FeedbackTransport.Handle(f.handle) }
 
-func (f *feedbackRecevier) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
+func (f *feedbackReceiver) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
 	op := Batch{Sender: message.Sender}
 	for _, feedback := range message.Feedback {
 		op.Operations = append(op.Operations, Operation{Key: feedback.Key, Version: feedback.Version})

@@ -52,11 +52,9 @@ func (o Operation) Flush(w io.Writer) error {
 	return c.Error()
 }
 
-const opeartionKey = "op"
+const operationKey = "op"
 
-func Key(key []byte) (opKey []byte, err error) {
-	return kv_.CompositeKey(key, key)
-}
+func Key(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
 
 func Load(kve kv_.Reader, key []byte) (op Operation, err error) {
 	opKey, err := Key(key)
