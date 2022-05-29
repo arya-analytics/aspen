@@ -27,6 +27,8 @@ type Cluster interface {
 	Members() node.Group
 	// Member returns the member Node with the given ID.
 	Member(id node.ID) (node.Node, bool)
+	// Resolve resolves the address of a node with the given ID.
+	Resolve(id node.ID) (address.Address, bool)
 	// Reader returns a copy of the current cluster state. This snapshot is safe
 	// to modify, but is not guaranteed to remain up to date.
 	xstore.Reader[State]
@@ -86,6 +88,11 @@ func (c *cluster) Host() node.Node { return c.Store.GetHost() }
 func (c *cluster) Members() node.Group { return c.GetState().Nodes }
 
 func (c *cluster) Member(id node.ID) (node.Node, bool) { return c.Store.Get(id) }
+
+func (c *cluster) Resolve(id node.ID) (address.Address, bool) {
+	n, ok := c.Store.Get(id)
+	return n.Address, ok
+}
 
 func openStore(openStore Config) (store.Store, error) {
 	s := store.New()

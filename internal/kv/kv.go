@@ -6,8 +6,6 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/kv/kvmock"
-	"time"
 )
 
 type (
@@ -28,6 +26,7 @@ type KV interface {
 type kv struct {
 	kv_.KV
 	Config
+	exec *executor
 }
 
 func New(clust cluster.Cluster, kvEngine kv_.KV, cfg Config) KV {
@@ -35,60 +34,51 @@ func New(clust cluster.Cluster, kvEngine kv_.KV, cfg Config) KV {
 }
 
 func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
-	return nil
+	return k.exec.setWithLease(key, leaseholder, value)
 }
 
-func wire() {
-	kv := kvmock.New()
-	ver := newVersionFilter(kv)
-	persist := newPersist(kv)
-	emitter := newEmitter(1 * time.Second)
+func (k *kv) Set(key []byte, value []byte) error {
+	return k.exec.setWithLease(key, DefaultLeaseholder, value)
+}
 
-	opSender := &operationSender{}
-	opReceiver := &OperationReceiver{}
+func Open(cfg Config) (KV, error) {
+	ctx := confluence.DefaultContext()
+	pipeline := confluence.NewPipeline[Batch]()
 
-	fbSender := &FeedbackSender{}
-	fbReceiver := &FeedbackReceiver{}
+	pipeline.Segment(versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
+	pipeline.Segment(persistAddr, newPersist(cfg))
+	pipeline.Segment(operationSenderAddr, newOperationSender(cfg))
+	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg))
+	pipeline.Segment(feedbackSenderAddr, newFeedbackSender(cfg))
+	pipeline.Segment(feedbackReceiverAddr, newFeedbackReceiver(cfg))
+	pipeline.Segment(recoveryTransformAddr, newRecoveryTransform(cfg))
+	pipeline.Segment(leaseSenderAddr, newLeaseSender(cfg))
+	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
+	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, persistAddr, leaseSenderAddr))
 
-	recovery := &recovery{}
-
-	pipe := confluence.NewPipeline[Batch]()
-
-	pipe.Segment("version", ver)
-	pipe.Segment("persist", persist)
-	pipe.Segment("emitter", emitter)
-	pipe.Segment("opSender", opSender)
-	pipe.Segment("opReceiver", opReceiver)
-	pipe.Segment("feedbackSenderAddr", fbSender)
-	pipe.Segment("fbReceiver", fbReceiver)
-	pipe.Segment("recovery", recovery)
-
-	pipe.Route(confluence.MultiRouter[Batch]{
-		FromAddresses: []address.Address{"opReceiver"},
-		ToAddresses:   []address.Address{"version"},
+	builder := pipeline.NewRouteBuilder()
+	builder.Route(confluence.MultiRouter[Batch]{
+		FromAddresses: []address.Address{operationReceiverAddr},
+		ToAddresses:   []address.Address{versionFilterAddr},
 		Stitch:        confluence.StitchLinear,
 	})
-
-	pipe.Route(confluence.MultiRouter[Batch]{
-		FromAddresses: []address.Address{"version"},
-		ToAddresses:   []address.Address{"persist"},
+	builder.Route(confluence.MultiRouter[Batch]{
+		FromAddresses: []address.Address{versionFilterAddr},
+		ToAddresses:   []address.Address{persistAddr, feedbackSenderAddr},
 		Stitch:        confluence.StitchWeave,
 	})
-
-	pipe.Route(confluence.MultiRouter[Batch]{
-		FromAddresses: []address.Address{"persist", "recovery"},
-		ToAddresses:   []address.Address{"emitter"},
-		Stitch:        confluence.StitchLinear,
+	builder.Route(confluence.UnaryRouter[Batch]{
+		FromAddr: feedbackReceiverAddr,
+		ToAddr:   recoveryTransformAddr,
+	})
+	builder.Route(confluence.UnaryRouter[Batch]{
+		FromAddr: emitterAddr,
+		ToAddr:   operationSenderAddr,
 	})
 
-	pipe.Route(confluence.UnaryRouter[Batch]{
-		FromAddr: "emitter",
-		ToAddr:   "opSender",
-	})
+	pipeline.Flow(ctx)
 
-	pipe.Route(confluence.UnaryRouter[Batch]{
-		FromAddr: "fbReceiver",
-		ToAddr:   "recovery",
-	})
+	kve := &kv{Config: cfg, KV: cfg.Engine}
 
+	return kve, builder.Error()
 }

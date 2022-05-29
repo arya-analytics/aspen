@@ -15,10 +15,12 @@ type versionFilter struct {
 		mu       sync.RWMutex
 		versions map[node.ID]version.Counter
 	}
+	acceptedTo address.Address
+	rejectedTo address.Address
 	confluence.BatchSwitch[Batch]
 }
 
-func newVersionFilter(cfg Config) Segment {
+func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) Segment {
 	s := &versionFilter{Config: cfg}
 	s.state.versions = make(map[node.ID]version.Counter)
 	s.BatchSwitch.Switch = s._switch
@@ -34,7 +36,7 @@ func (vc *versionFilter) _switch(batch Batch) map[address.Address]Batch {
 		}
 		rejected.Operations = append(rejected.Operations, op)
 	}
-	return map[address.Address]Batch{"persist": accepted, "feedbackSenderAddr": rejected}
+	return map[address.Address]Batch{vc.acceptedTo: accepted, vc.rejectedTo: rejected}
 }
 
 func (vc *versionFilter) olderVersion(op Operation) bool {

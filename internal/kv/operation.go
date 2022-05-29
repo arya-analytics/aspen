@@ -3,7 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/filter"
-	"github.com/arya-analytics/x/kv"
+	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/util/errutil"
 	"github.com/arya-analytics/x/version"
 	"io"
@@ -32,7 +32,6 @@ type Operation struct {
 	Version     version.Counter
 	Leaseholder node.ID
 	State       State
-	Error       error
 }
 
 // Load implements the kv.Loader interface.
@@ -53,24 +52,18 @@ func (o Operation) Flush(w io.Writer) error {
 	return c.Error()
 }
 
-type Segment interface {
-	InPipe() chan<- Operation
-	OutPipe() <-chan Operation
-	Start() <-chan error
-}
-
-const key = "op"
+const opeartionKey = "op"
 
 func Key(key []byte) (opKey []byte, err error) {
-	return kv.CompositeKey(key, key)
+	return kv_.CompositeKey(key, key)
 }
 
-func Load(kve kv.Reader, key []byte) (op Operation, err error) {
+func Load(kve kv_.Reader, key []byte) (op Operation, err error) {
 	opKey, err := Key(key)
 	if err != nil {
 		return op, err
 	}
-	return op, kv.Load(kve, opKey, &op)
+	return op, kv_.Load(kve, opKey, &op)
 }
 
 type Operations []Operation

@@ -52,18 +52,18 @@ func (g *operationSender) transform(ctx confluence.Context, batch Batch) Batch {
 	return Batch{Operations: ack.Operations, Sender: ack.Sender}
 }
 
-type OperationReceiver struct {
+type operationReceiver struct {
 	Config
 	Cluster cluster.Cluster
 	store.Store[Map]
 	confluence.CoreSource[Batch]
 }
 
-func newOperationReceiver(cfg Config) Segment { return &OperationReceiver{Config: cfg} }
+func newOperationReceiver(cfg Config) Segment { return &operationReceiver{Config: cfg} }
 
-func (g *OperationReceiver) Flow(ctx confluence.Context) { g.OperationsTransport.Handle(g.handle) }
+func (g *operationReceiver) Flow(ctx confluence.Context) { g.OperationsTransport.Handle(g.handle) }
 
-func (g *OperationReceiver) handle(ctx context.Context, message OperationsMessage) (OperationsMessage, error) {
+func (g *operationReceiver) handle(ctx context.Context, message OperationsMessage) (OperationsMessage, error) {
 	batch := Batch{Operations: message.Operations, Sender: message.Sender}
 	for _, inlet := range g.Out {
 		inlet.Inlet() <- batch
@@ -71,19 +71,19 @@ func (g *OperationReceiver) handle(ctx context.Context, message OperationsMessag
 	return OperationsMessage{Operations: g.Store.GetState().Operations(), Sender: g.Cluster.Host().ID}, nil
 }
 
-type FeedbackSender struct {
+type feedbackSender struct {
 	Config
 	Cluster cluster.Cluster
 	confluence.CoreSink[Batch]
 }
 
 func newFeedbackSender(cfg Config) Segment {
-	fs := &FeedbackSender{Config: cfg}
+	fs := &feedbackSender{Config: cfg}
 	fs.Sink = fs.sink
 	return fs
 }
 
-func (f *FeedbackSender) sink(ctx confluence.Context, batch Batch) {
+func (f *feedbackSender) sink(ctx confluence.Context, batch Batch) {
 	msg := FeedbackMessage{}
 	for _, op := range batch.Operations {
 		msg.Feedback = append(msg.Feedback, Feedback{Key: op.Key, Version: op.Version})
@@ -94,16 +94,16 @@ func (f *FeedbackSender) sink(ctx confluence.Context, batch Batch) {
 	}
 }
 
-type FeedbackReceiver struct {
+type feedbackRecevier struct {
 	Config
 	confluence.CoreSource[Batch]
 }
 
-func newFeedbackReceiver(cfg Config) Segment { return &FeedbackReceiver{Config: cfg} }
+func newFeedbackReceiver(cfg Config) Segment { return &feedbackRecevier{Config: cfg} }
 
-func (f *FeedbackReceiver) Flow(ctx confluence.Context) { f.FeedbackTransport.Handle(f.handle) }
+func (f *feedbackRecevier) Flow(ctx confluence.Context) { f.FeedbackTransport.Handle(f.handle) }
 
-func (f *FeedbackReceiver) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
+func (f *feedbackRecevier) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
 	op := Batch{Sender: message.Sender}
 	for _, feedback := range message.Feedback {
 		op.Operations = append(op.Operations, Operation{Key: feedback.Key, Version: feedback.Version})
