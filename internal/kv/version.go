@@ -1,29 +1,23 @@
 package kv
 
 import (
-	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/version"
 	"go.uber.org/zap"
-	"sync"
 )
 
 type versionFilter struct {
 	Config
-	state struct {
-		mu       sync.RWMutex
-		versions map[node.ID]version.Counter
-	}
+	memKV      kv_.KV
 	acceptedTo address.Address
 	rejectedTo address.Address
 	confluence.BatchSwitch[batch]
 }
 
 func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) segment {
-	s := &versionFilter{Config: cfg, acceptedTo: acceptedTo, rejectedTo: rejectedTo}
-	s.state.versions = make(map[node.ID]version.Counter)
+	s := &versionFilter{Config: cfg, acceptedTo: acceptedTo, rejectedTo: rejectedTo, memKV: cfg.Engine}
 	s.BatchSwitch.Switch = s._switch
 	return s
 }
@@ -37,7 +31,9 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 	rejected.sender = b.sender
 	for _, op := range b.operations {
 		if vc.olderVersion(op) {
-			vc.setVersion(op.Leaseholder, op.Version)
+			if err := vc.setVersion(op); err != nil {
+				ctx.ErrC <- err
+			}
 			accepted.operations = append(accepted.operations, op)
 		} else {
 			rejected.operations = append(rejected.operations, op)
@@ -59,33 +55,34 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 	return resMap
 }
 
+func (vc *versionFilter) setVersion(op Operation) error {
+	return kv_.Flush(vc.memKV, op.Key, op.Digest())
+}
+
 func (vc *versionFilter) olderVersion(op Operation) bool {
-	vc.state.mu.RLock()
-	defer vc.state.mu.RUnlock()
-	ver, ok := vc.state.versions[op.Leaseholder]
-	if !ok {
-		var err error
-		ver, err = vc.getFromKV(op.Key)
+	dig, err := getDigestFromKV(vc.memKV, op.Key)
+	if err != nil {
+		dig, err = getDigestFromKV(vc.Engine, op.Key)
 		if err != nil {
 			return err == kv_.ErrNotFound
 		}
 	}
-	return ver.OlderThan(op.Version)
-}
-
-func (vc *versionFilter) setVersion(leaseholder node.ID, version version.Counter) {
-	vc.state.mu.Lock()
-	defer vc.state.mu.Unlock()
-	vc.state.versions[leaseholder] = version
-}
-
-func (vc *versionFilter) getFromKV(key []byte) (version.Counter, error) {
-	key, err := metadataKey(key)
-	if err != nil {
-		return 0, err
+	if op.Version.YoungerThan(dig.Version) {
+		return false
 	}
-	op := &Operation{}
-	return op.Version, kv_.Load(vc.Engine, key, op)
+	if op.Version.EqualTo(dig.Version) {
+		return op.Leaseholder > dig.Leaseholder
+	}
+	return true
+}
+
+func getDigestFromKV(kve kv_.KV, key []byte) (Digest, error) {
+	dig := &Digest{}
+	key, err := digestKey(key)
+	if err != nil {
+		return *dig, err
+	}
+	return *dig, kv_.Load(kve, key, dig)
 }
 
 const versionCounterKey = "ver"
@@ -112,10 +109,11 @@ func (va *versionAssigner) transform(ctx confluence.Context, b batch) (batch, bo
 		return batch{}, false
 	}
 	for i, op := range b.operations {
-		op.Version = version.Counter(latestVer + int64(i))
+		ver := version.Counter(latestVer + int64(i))
+		b.operations[i].Version = ver
 		va.Logger.Debug("versionAssigner",
 			zap.String("key", string(op.Key)),
-			zap.Int64("version", int64(op.Version)),
+			zap.Int64("version", int64(ver)),
 		)
 	}
 	return b, true

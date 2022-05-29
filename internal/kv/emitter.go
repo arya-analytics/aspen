@@ -29,5 +29,5 @@ func (u *emitter) Store(_ confluence.Context, batch batch) {
 }
 
 func (u *emitter) Emit(_ confluence.Context) batch {
-	return batch{operations: u.Observable.GetState().Operations()}
+	return batch{operations: u.Observable.GetState().Operations().whereState(Infected)}
 }

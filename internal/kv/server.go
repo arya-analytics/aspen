@@ -7,7 +7,6 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/store"
 	"github.com/arya-analytics/x/transport"
-	"github.com/arya-analytics/x/version"
 	"go.uber.org/zap"
 	"go/types"
 )
@@ -18,19 +17,14 @@ type (
 	LeaseTransport      = transport.Unary[LeaseMessage, types.Nil]
 )
 
-type Feedback struct {
-	Key     []byte
-	Version version.Counter
-}
-
 type OperationsMessage struct {
 	Sender     node.ID
 	Operations Operations
 }
 
 type FeedbackMessage struct {
-	Sender   node.ID
-	Feedback []Feedback
+	Sender  node.ID
+	Digests []Digest
 }
 
 type operationSender struct {
@@ -45,11 +39,14 @@ func newOperationSender(cfg Config) segment {
 }
 
 func (g *operationSender) transform(ctx confluence.Context, b batch) (batch, bool) {
+	if len(b.operations) == 0 {
+		return batch{}, false
+	}
 	snap := g.Cluster.GetState()
 	peer := gossip.RandomPeer(snap)
 	if peer.Address == "" {
 		g.Logger.Warn("no healthy nodes to gossip with")
-		return b, false
+		return batch{}, false
 	}
 	g.Logger.Debug("operationSender",
 		zap.Uint32("initiator", uint32(snap.HostID)),
@@ -62,6 +59,9 @@ func (g *operationSender) transform(ctx confluence.Context, b batch) (batch, boo
 		ctx.ErrC <- err
 	}
 	g.Logger.Debug("operationSender ack", zap.Int("numOps", len(ack.Operations)), zap.Error(err))
+	if len(ack.Operations) == 0 {
+		return batch{}, false
+	}
 	return batch{operations: ack.Operations, sender: ack.Sender}, true
 }
 
@@ -102,15 +102,18 @@ func newFeedbackSender(cfg Config) segment {
 }
 
 func (f *feedbackSender) sink(ctx confluence.Context, b batch) {
-	msg := FeedbackMessage{}
+	if b.sender == 0 {
+		return
+	}
+	msg := FeedbackMessage{Sender: f.Cluster.Host().ID}
 	for _, op := range b.operations {
-		msg.Feedback = append(msg.Feedback, Feedback{Key: op.Key, Version: op.Version})
+		msg.Digests = append(msg.Digests, Digest{Key: op.Key, Version: op.Version})
 	}
 	sender, _ := f.Cluster.Node(b.sender)
 	f.Logger.Debug("feedbackSender",
 		zap.Uint32("host", uint32(f.Cluster.Host().ID)),
 		zap.Uint32("sendingTo", uint32(b.sender)),
-		zap.Int("numFeedback", len(msg.Feedback)),
+		zap.Int("numFeedback", len(msg.Digests)),
 	)
 	if _, err := f.FeedbackTransport.Send(ctx.Ctx, sender.Address, msg); err != nil {
 		ctx.ErrC <- err
@@ -131,9 +134,9 @@ func (f *feedbackReceiver) handle(ctx context.Context, message FeedbackMessage) 
 	f.Logger.Debug("feedbackReceiver",
 		zap.Uint32("host", uint32(f.Cluster.Host().ID)),
 		zap.Uint32("receivedFrom", uint32(message.Sender)),
-		zap.Int("numFeedback", len(message.Feedback)),
+		zap.Int("numFeedback", len(message.Digests)),
 	)
-	for _, feedback := range message.Feedback {
+	for _, feedback := range message.Digests {
 		b.operations = append(b.operations, Operation{Key: feedback.Key, Version: feedback.Version})
 	}
 	for _, inlet := range f.Out {

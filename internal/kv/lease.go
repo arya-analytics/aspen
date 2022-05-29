@@ -91,7 +91,7 @@ func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
 }
 
 func (lp *leaseProxy) getLease(key []byte) (node.ID, error) {
-	op, err := loadMetadata(lp.Engine, key)
+	op, err := getDigestFromKV(lp.Engine, key)
 	return op.Leaseholder, err
 }
 

@@ -29,13 +29,15 @@ func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 			c.Exec(func() error { return ps.Engine.Delete(op.Key) })
 		}
 		c.Exec(func() error {
-			key, err := metadataKey(op.Key)
+			key, err := digestKey(op.Key)
 			if err != nil {
 				return err
 			}
-			err = kv_.Flush(ps.Engine, key, op)
+			if err = kv_.Flush(ps.Engine, key, op.Digest()); err != nil {
+				return err
+			}
 			accepted.operations = append(accepted.operations, op)
-			return err
+			return nil
 		})
 	}
 	return accepted, true

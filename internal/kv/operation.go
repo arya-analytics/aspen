@@ -33,13 +33,40 @@ type Operation struct {
 	state       State
 }
 
+func (o Operation) Digest() Digest {
+	return Digest{
+		Version:     o.Version,
+		Leaseholder: o.Leaseholder,
+	}
+}
+
+type Digest struct {
+	Key         []byte
+	Version     version.Counter
+	Leaseholder node.ID
+}
+
 // Load implements the kv.Loader interface.
-func (o *Operation) Load(r io.Reader) error {
+func (d *Digest) Load(r io.Reader) error {
 	c := errutil.NewCatchRead(r)
-	c.Read(&o.Variant)
-	c.Read(&o.Version)
-	c.Read(&o.Leaseholder)
+	c.Read(&d.Version)
+	c.Read(&d.Leaseholder)
 	return c.Error()
+}
+
+// Flush implements the kv.Flusher interface.
+func (d Digest) Flush(w io.Writer) error {
+	c := errutil.NewCatchWrite(w)
+	c.Write(d.Version)
+	c.Write(d.Leaseholder)
+	return c.Error()
+}
+
+func (d Digest) Operation() Operation {
+	return Operation{
+		Version:     d.Version,
+		Leaseholder: d.Leaseholder,
+	}
 }
 
 // Flush implements the kv.Flusher interface.
@@ -51,17 +78,9 @@ func (o Operation) Flush(w io.Writer) error {
 	return c.Error()
 }
 
-const operationKey = "op"
+const operationKey = "--op--"
 
-func metadataKey(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
-
-func loadMetadata(kve kv_.Reader, key []byte) (op Operation, err error) {
-	opKey, err := metadataKey(key)
-	if err != nil {
-		return op, err
-	}
-	return op, kv_.Load(kve, opKey, &op)
-}
+func digestKey(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
 
 type Operations []Operation
 
