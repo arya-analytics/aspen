@@ -18,7 +18,7 @@ import (
 
 var _ = Describe("KV", func() {
 	var (
-		opNet       *tmock.Network[kv.OperationsMessage, kv.OperationsMessage]
+		opNet       *tmock.Network[kv.OperationMessage, kv.OperationMessage]
 		feedbackNet *tmock.Network[kv.FeedbackMessage, types.Nil]
 		leaseNet    *tmock.Network[kv.LeaseMessage, types.Nil]
 		clusterSize int
@@ -28,7 +28,7 @@ var _ = Describe("KV", func() {
 		sd          shutdown.Shutdown
 	)
 	BeforeEach(func() {
-		opNet = tmock.NewNetwork[kv.OperationsMessage, kv.OperationsMessage]()
+		opNet = tmock.NewNetwork[kv.OperationMessage, kv.OperationMessage]()
 		feedbackNet = tmock.NewNetwork[kv.FeedbackMessage, types.Nil]()
 		leaseNet = tmock.NewNetwork[kv.LeaseMessage, types.Nil]()
 		sd = shutdown.New()

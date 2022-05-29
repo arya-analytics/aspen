@@ -7,6 +7,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/transport"
 	"go.uber.org/zap"
 	"go/types"
 )
@@ -15,13 +16,8 @@ var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
 
 const DefaultLeaseholder = 0
 
-type LeaseMessage struct {
-	Operation Operation
-}
-
 type leaseProxy struct {
 	Config
-	host     node.ID
 	localTo  address.Address
 	remoteTo address.Address
 	confluence.Switch[batch]
@@ -29,7 +25,6 @@ type leaseProxy struct {
 
 func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address) *leaseProxy {
 	lp := &leaseProxy{Config: cfg, localTo: localTo, remoteTo: remoteTo}
-	lp.host = lp.Cluster.Host().ID
 	lp.Switch.Switch = lp._switch
 	return lp
 }
@@ -50,14 +45,12 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address
 		local, err = lp.processDelete(op)
 	}
 	if err != nil {
+		lp.Logger.Error("leaseProxy failed to process operation", zap.Error(err))
 		batch.errors <- err
 		close(batch.errors)
 		return ""
 	}
-	lp.Logger.Debug("lease proxy", zap.Bool("local", local),
-		zap.String("localTo", string(lp.localTo)),
-		zap.String("remoteTo", string(lp.remoteTo)),
-	)
+	lp.Logger.Debug("lease proxy", zap.Bool("local", local))
 	if local {
 		return lp.localTo
 	}
@@ -66,14 +59,14 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address
 
 func (lp *leaseProxy) processSet(op Operation) (bool, error) {
 	if op.Leaseholder == DefaultLeaseholder {
-		op.Leaseholder = lp.host
+		op.Leaseholder = lp.Cluster.HostID()
 	}
-	return op.Leaseholder == lp.host, lp.validateLease(op.Key, op.Leaseholder)
+	return op.Leaseholder == lp.Cluster.HostID(), lp.validateLease(op.Key, op.Leaseholder)
 }
 
 func (lp *leaseProxy) processDelete(op Operation) (bool, error) {
 	leaseholder, err := lp.getLease(op.Key)
-	return leaseholder == lp.host, err
+	return leaseholder == lp.Cluster.HostID(), err
 }
 
 func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
@@ -95,6 +88,14 @@ func (lp *leaseProxy) getLease(key []byte) (node.ID, error) {
 	return op.Leaseholder, err
 }
 
+type LeaseMessage struct {
+	Operation Operation
+}
+
+func (l LeaseMessage) toBatch() batch { return batch{operations: []Operation{l.Operation}} }
+
+type LeaseTransport = transport.Unary[LeaseMessage, types.Nil]
+
 type leaseSender struct {
 	Config
 	confluence.CoreSink[batch]
@@ -102,52 +103,63 @@ type leaseSender struct {
 
 func newLeaseSender(cfg Config) segment {
 	ls := &leaseSender{Config: cfg}
-	ls.Sink = ls.forward
+	ls.Sink = ls.send
 	return ls
 }
 
-func (lf *leaseSender) forward(ctx confluence.Context, batch batch) {
+func (lf *leaseSender) send(ctx confluence.Context, batch batch) {
 	defer close(batch.errors)
-	if len(batch.operations) != 1 {
-		panic("cannot process more than one op at a time")
-	}
-	op := batch.operations[0]
-	lf.Logger.Debug("leaseSender: forwarding Op",
-		zap.Int("variant", int(op.Variant)),
-		zap.String("key", string(op.Key)),
-		zap.Uint32("forwardingTo (leaseholder)", uint32(op.Leaseholder)),
+	op := batch.single()
+
+	lf.Logger.Debug("sending lease operation",
+		zap.Binary("key", op.Key),
+		zap.Stringer("host", lf.Cluster.HostID()),
+		zap.Stringer("peer (leaseholder)", op.Leaseholder),
 	)
+
 	addr, err := lf.Cluster.Resolve(op.Leaseholder)
 	if err != nil {
+		lf.Logger.Error("failed to resolve leaseholder", zap.Stringer("peer", op.Leaseholder), zap.Error(err))
 		batch.errors <- err
 		return
 	}
 	if _, err = lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
+		lf.Logger.Error("failed to send lease operation", zap.Stringer("peer", op.Leaseholder), zap.Error(err))
 		batch.errors <- err
 	}
 }
 
 type leaseReceiver struct {
 	Config
-	confluence.CoreSource[batch]
+	confluence.UnarySource[batch]
 }
 
-func newLeaseReceiver(cfg Config) segment { return &leaseReceiver{Config: cfg} }
+func newLeaseReceiver(cfg Config) segment {
+	lr := &leaseReceiver{Config: cfg}
+	lr.LeaseTransport.Handle(lr.receive)
+	return lr
+}
 
-func (lr *leaseReceiver) Flow(ctx confluence.Context) { lr.LeaseTransport.Handle(lr.handle) }
+func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
 
-func (lr *leaseReceiver) handle(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
-	b := batch{errors: make(chan error, 1), operations: []Operation{msg.Operation}}
 	if ctx.Err() != nil {
 		return types.Nil{}, ctx.Err()
 	}
-	lr.Logger.Debug("leaseReceiver: received Op",
-		zap.Int("variant", int(msg.Operation.Variant)),
-		zap.String("key", string(msg.Operation.Key)),
-		zap.Uint32("receivedFrom", uint32(msg.Operation.Leaseholder)),
+
+	b := msg.toBatch()
+	b.errors = make(chan error, 1)
+
+	lr.Logger.Debug("received lease operation",
+		zap.Binary("key", msg.Operation.Key),
+		zap.Stringer("peer", msg.Operation.Leaseholder),
+		zap.Stringer("host", lr.Cluster.HostID()),
 	)
-	for _, inlet := range lr.Out {
-		inlet.Inlet() <- b
+
+	lr.Out.Inlet() <- b
+	err := <-b.errors
+	if err != nil {
+		lr.Logger.Error("lease failed to process operation", zap.Error(err))
 	}
-	return types.Nil{}, <-b.errors
+
+	return types.Nil{}, err
 }

@@ -93,7 +93,7 @@ var _ = Describe("Convergence", func() {
 				wg.Wait()
 			}
 			for _, s := range stores {
-				Expect(s.GetState().Nodes).To(HaveLen(values.nodeCount))
+				Expect(s.CopyState().Nodes).To(HaveLen(values.nodeCount))
 			}
 		})
 	})

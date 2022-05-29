@@ -22,7 +22,7 @@ type Store interface {
 	Set(node.Node)
 	// Get returns a node from state. Returns false if the node is not found.
 	Get(node.ID) (node.Node, bool)
-	// Merge merges a node.Group into Stac.Nodes by selecting nodes from group with heartbeats
+	// Merge merges a node.Group into State.Nodes by selecting nodes from group with heartbeats
 	// that are either not in State or are older than in State.
 	Merge(group node.Group)
 	// Valid returns true if the store is valid i.e. State.HostID has been set.
@@ -52,13 +52,13 @@ type core struct{ store.Observable[State] }
 
 // Get implements Store.
 func (c *core) Get(id node.ID) (node.Node, bool) {
-	n, ok := c.Observable.GetState().Nodes[id]
+	n, ok := c.Observable.ReadState().Nodes[id]
 	return n, ok
 }
 
 // GetHost implements Store.
 func (c *core) GetHost() node.Node {
-	snap := c.Observable.GetState()
+	snap := c.Observable.ReadState()
 	if n, ok := snap.Nodes[snap.HostID]; ok {
 		return n
 	}
@@ -67,7 +67,7 @@ func (c *core) GetHost() node.Node {
 
 // SetHost implements Store.
 func (c *core) SetHost(n node.Node) {
-	snap := c.Observable.GetState()
+	snap := c.Observable.CopyState()
 	snap.Nodes[n.ID] = n
 	snap.HostID = n.ID
 	c.Observable.SetState(snap)
@@ -75,14 +75,14 @@ func (c *core) SetHost(n node.Node) {
 
 // Set implements Store.
 func (c *core) Set(n node.Node) {
-	snap := c.Observable.GetState()
+	snap := c.Observable.CopyState()
 	snap.Nodes[n.ID] = n
 	c.Observable.SetState(snap)
 }
 
 // Merge implements Store.
 func (c *core) Merge(other node.Group) {
-	snap := c.Observable.GetState()
+	snap := c.Observable.CopyState()
 	for _, n := range other {
 		in, ok := snap.Nodes[n.ID]
 		if !ok || n.Heartbeat.OlderThan(in.Heartbeat) {
@@ -93,7 +93,7 @@ func (c *core) Merge(other node.Group) {
 }
 
 // Valid implements Store.
-func (c *core) Valid() bool { return c.Observable.GetState().HostID != node.ID(0) }
+func (c *core) Valid() bool { return c.Observable.ReadState().HostID != node.ID(0) }
 
 // Load implements kv.FlushLoader.
 func (c *core) Load(r io.Reader) error {
@@ -107,6 +107,6 @@ func (c *core) Load(r io.Reader) error {
 // Flush implements kv.FlushLoader.
 func (c *core) Flush(w io.Writer) error {
 	catch := errutil.NewCatchWrite(w)
-	catch.Write(c.Observable.GetState())
+	catch.Write(c.Observable.CopyState())
 	return catch.Error()
 }

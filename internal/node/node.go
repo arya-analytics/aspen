@@ -3,6 +3,7 @@ package node
 import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/version"
+	"strconv"
 )
 
 type ID uint32
@@ -18,6 +19,8 @@ func (id ID) Less(o ID) bool {
 func (id ID) Equal(o ID) bool {
 	return id == o
 }
+
+func (id ID) String() string { return "Node " + strconv.Itoa(int(id)) }
 
 type Node struct {
 	ID ID

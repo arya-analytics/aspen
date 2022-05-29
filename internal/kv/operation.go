@@ -46,6 +46,16 @@ type Digest struct {
 	Leaseholder node.ID
 }
 
+type Digests []Digest
+
+func (d Digests) Operations() Operations {
+	ops := make(Operations, len(d))
+	for i, d := range d {
+		ops[i] = d.Operation()
+	}
+	return ops
+}
+
 // Load implements the kv.Loader interface.
 func (d *Digest) Load(r io.Reader) error {
 	c := errutil.NewCatchRead(r)
@@ -90,10 +100,25 @@ func (ops Operations) whereState(state State) Operations {
 
 func (ops Operations) where(cond func(Operation) bool) Operations { return filter.Slice(ops, cond) }
 
+func (ops Operations) digests() []Digest {
+	digests := make([]Digest, len(ops))
+	for i, op := range ops {
+		digests[i] = op.Digest()
+	}
+	return digests
+}
+
 type batch struct {
 	sender     node.ID
 	operations Operations
 	errors     chan error
+}
+
+func (b *batch) single() Operation {
+	if len(b.operations) != 1 {
+		panic("batch must have exactly one operation")
+	}
+	return b.operations[0]
 }
 
 type segment = confluence.Segment[batch]

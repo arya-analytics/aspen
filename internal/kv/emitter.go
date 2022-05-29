@@ -13,8 +13,10 @@ type emitter struct {
 
 func newEmitter(cfg Config) *emitter {
 	s := &emitter{
-		Observable: store.ObservableWrap[operationMap](store.New(func(m operationMap) operationMap { return m.Copy() })),
-		Config:     cfg,
+		Observable: store.ObservableWrap[operationMap](store.New(func(m operationMap) operationMap {
+			return m.Copy()
+		})),
+		Config: cfg,
 	}
 	s.Emitter.Emit = s.Emit
 	s.Emitter.Store = s.Store
@@ -23,11 +25,11 @@ func newEmitter(cfg Config) *emitter {
 }
 
 func (u *emitter) Store(_ confluence.Context, batch batch) {
-	snap := u.Observable.GetState()
+	snap := u.Observable.CopyState()
 	snap.Merge(batch.operations)
 	u.Observable.SetState(snap)
 }
 
 func (u *emitter) Emit(_ confluence.Context) batch {
-	return batch{operations: u.Observable.GetState().Operations().whereState(Infected)}
+	return batch{operations: u.Observable.ReadState().Operations().whereState(Infected)}
 }

@@ -34,7 +34,7 @@ func (g *Gossip) Gossip(ctx context.Context) <-chan error {
 
 func (g *Gossip) GossipOnce(ctx context.Context) error {
 	g.incrementHostHeartbeat()
-	snap := g.store.GetState()
+	snap := g.store.CopyState()
 	peer := RandomPeer(snap)
 	if peer.Address == "" {
 		g.Logger.Warn("no healthy nodes to gossip with")
@@ -50,7 +50,7 @@ func (g *Gossip) GossipOnce(ctx context.Context) error {
 }
 
 func (g *Gossip) GossipOnceWith(ctx context.Context, addr address.Address) error {
-	sync := Message{Digests: g.store.GetState().Nodes.Digests()}
+	sync := Message{Digests: g.store.CopyState().Nodes.Digests()}
 	ack, err := g.Transport.Send(ctx, addr, sync)
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ func (g *Gossip) process(ctx context.Context, msg Message) (Message, error) {
 }
 
 func (g *Gossip) sync(sync Message) (ack Message) {
-	snap := g.store.GetState()
+	snap := g.store.CopyState()
 	ack = Message{Nodes: make(node.Group), Digests: make(node.Digests)}
 	for _, dig := range sync.Digests {
 		n, ok := snap.Nodes[dig.ID]
@@ -116,7 +116,7 @@ func (g *Gossip) sync(sync Message) (ack Message) {
 
 func (g *Gossip) ack(ack Message) (ack2 Message) {
 	// Take a snapshot before we merge the peer's nodes.
-	snap := g.store.GetState()
+	snap := g.store.CopyState()
 	g.store.Merge(ack.Nodes)
 	ack2 = Message{Nodes: make(node.Group)}
 	for _, dig := range ack.Digests {

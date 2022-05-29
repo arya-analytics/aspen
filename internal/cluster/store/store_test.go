@@ -17,7 +17,7 @@ var _ = Describe("Store", func() {
 	})
 	Describe("New", func() {
 		It("Should open a new store with empty state", func() {
-			Expect(s.GetState().Nodes).ToNot(BeNil())
+			Expect(s.CopyState().Nodes).ToNot(BeNil())
 		})
 	})
 	Describe("Set and Node", func() {

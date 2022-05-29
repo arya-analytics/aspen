@@ -21,7 +21,7 @@ func newPersist(cfg Config) segment {
 func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 	var accepted batch
 	c := errutil.NewCatchSimple(errutil.WithHooks(errutil.NewPipeHook(b.errors)))
-	ps.Logger.Debug("persisting batch", zap.Int("numOps", len(b.operations)))
+	ps.Logger.Debug("persisting toBatch", zap.Int("numOps", len(b.operations)))
 	for _, op := range b.operations {
 		if op.Variant == Set {
 			c.Exec(func() error { return ps.Engine.Set(op.Key, op.Value) })

@@ -28,6 +28,8 @@ var (
 type Cluster interface {
 	// Host returns the host Node (i.e. the node that Host is called on).
 	Host() node.Node
+	// HostID returns the ID of the host node.
+	HostID() node.ID
 	// Nodes returns a node.Group of all nodes in the cluster.
 	Nodes() node.Group
 	// Node returns the member Node with the given ID.
@@ -86,9 +88,11 @@ type cluster struct {
 	store.Store
 }
 
-func (c *cluster) GetState() State { return c.Store.GetState() }
+func (c *cluster) GetState() State { return c.Store.CopyState() }
 
 func (c *cluster) Host() node.Node { return c.Store.GetHost() }
+
+func (c *cluster) HostID() node.ID { return c.Store.ReadState().HostID }
 
 func (c *cluster) Nodes() node.Group { return c.GetState().Nodes }
 
@@ -111,7 +115,7 @@ func openStore(openStore Config) (store.Store, error) {
 }
 
 func pledge(ctx context.Context, peers []address.Address, c *cluster) (node.ID, error) {
-	candidates := func() node.Group { return c.Store.GetState().Nodes }
+	candidates := func() node.Group { return c.Store.CopyState().Nodes }
 	return pledge_.Pledge(ctx, peers, candidates, c.Config.Pledge)
 }
 
@@ -127,7 +131,7 @@ func gossipInitialState(
 		if err := g.GossipOnceWith(ctx, peerAddr); err != nil {
 			cfg.Logger.Error("failed to gossip with peer", zap.String("peer", string(peerAddr)), zap.Error(err))
 		}
-		if len(s.GetState().Nodes) > 1 {
+		if len(s.CopyState().Nodes) > 1 {
 			break
 		}
 	}
