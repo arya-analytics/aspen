@@ -12,6 +12,8 @@ type executor struct {
 
 func newExecutor(cfg Config) *executor { return &executor{Config: cfg} }
 
+func (e *executor) Flow(ctx confluence.Context) {}
+
 func (e *executor) setWithLease(key []byte, leaseholder node.ID, value []byte) error {
 	errC := make(chan error, 1)
 	batch := Batch{Errors: errC, Operations: Operations{{

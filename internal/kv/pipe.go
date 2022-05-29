@@ -6,6 +6,7 @@ import (
 
 const (
 	versionFilterAddr     = "versionFilter"
+	versionAssignerAddr   = "versionAssigner"
 	persistAddr           = "persist"
 	emitterAddr           = "emitter"
 	operationSenderAddr   = "opSender"
@@ -16,6 +17,7 @@ const (
 	leaseSenderAddr       = "leaseSender"
 	leaseReceiverAddr     = "leaseReceiver"
 	leaseProxyAddr        = "leaseProxy"
+	executorAddr          = "executor"
 )
 
 type Segment = confluence.Segment[Batch]

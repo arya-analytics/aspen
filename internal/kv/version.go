@@ -67,3 +67,33 @@ func (vc *versionFilter) getFromKV(key []byte) (version.Counter, error) {
 	op := &Operation{}
 	return op.Version, kv_.Load(vc.Engine, key, op)
 }
+
+const versionCounterKey = "ver"
+
+type versionAssigner struct {
+	Config
+	counter *kv_.PersistedCounter
+	confluence.Transform[Batch]
+}
+
+func newVersionAssigner(cfg Config) (Segment, error) {
+	c, err := kv_.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
+	v := &versionAssigner{
+		Config:  cfg,
+		counter: c,
+	}
+	return v, err
+}
+
+func (va *versionAssigner) transform(batch Batch) Batch {
+	latestVer := va.counter.Value()
+	if _, err := va.counter.Increment(int64(len(batch.Operations))); err != nil {
+		batch.Errors <- err
+		close(batch.Errors)
+		return Batch{}
+	}
+	for i, op := range batch.Operations {
+		op.Version = version.Counter(latestVer + int64(i))
+	}
+	return batch
+}

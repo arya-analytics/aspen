@@ -14,19 +14,6 @@ var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
 
 const DefaultLeaseholder = 0
 
-// Writer is a writable key-value store.
-type Writer interface {
-	// SetWithLease is similar to Set, but also takes an id for a leaseholder node.
-	// If the leaseholder node is not the host, the request will be forwarded to the
-	// leaseholder for execution. Only the leaseholder node will be able to perform
-	// set and delete operations on the requested key.
-	SetWithLease(key []byte, leaseholder node.ID, value []byte) error
-	// Writer represents the same interface to a typical key-value store.
-	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
-	// the host.
-	kv_.Writer
-}
-
 type leaseProxy struct {
 	Config
 	host     node.ID
