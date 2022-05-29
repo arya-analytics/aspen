@@ -20,7 +20,7 @@ var _ = Describe("Store", func() {
 			Expect(s.GetState().Nodes).ToNot(BeNil())
 		})
 	})
-	Describe("Set and Member", func() {
+	Describe("Set and Node", func() {
 		It("Should set a node in store", func() {
 			s.Set(node.Node{ID: 1})
 			n, ok := s.Get(1)

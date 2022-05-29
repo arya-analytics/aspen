@@ -54,10 +54,10 @@ func (o Operation) Flush(w io.Writer) error {
 
 const operationKey = "op"
 
-func Key(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
+func metadataKey(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
 
-func Load(kve kv_.Reader, key []byte) (op Operation, err error) {
-	opKey, err := Key(key)
+func loadMetadata(kve kv_.Reader, key []byte) (op Operation, err error) {
+	opKey, err := metadataKey(key)
 	if err != nil {
 		return op, err
 	}
@@ -66,35 +66,35 @@ func Load(kve kv_.Reader, key []byte) (op Operation, err error) {
 
 type Operations []Operation
 
-func (ops Operations) WhereState(state State) Operations {
-	return ops.Where(func(op Operation) bool { return op.State == state })
+func (ops Operations) whereState(state State) Operations {
+	return ops.where(func(op Operation) bool { return op.State == state })
 }
 
-func (ops Operations) Where(cond func(Operation) bool) Operations { return filter.Slice(ops, cond) }
+func (ops Operations) where(cond func(Operation) bool) Operations { return filter.Slice(ops, cond) }
 
-type Batch struct {
+type batch struct {
 	Sender     node.ID
 	Operations Operations
 	Errors     chan error
 }
 
-type Map map[string]Operation
+type operationMap map[string]Operation
 
-func (m Map) Merge(operations Operations) {
+func (m operationMap) Merge(operations Operations) {
 	for _, op := range operations {
 		m[string(op.Key)] = op
 	}
 }
 
-func (m Map) Copy() Map {
-	mCopy := make(Map, len(m))
+func (m operationMap) Copy() operationMap {
+	mCopy := make(operationMap, len(m))
 	for k, v := range m {
 		mCopy[k] = v
 	}
 	return mCopy
 }
 
-func (m Map) Operations() Operations {
+func (m operationMap) Operations() Operations {
 	ops := make(Operations, 0, len(m))
 	for _, op := range m {
 		ops = append(ops, op)

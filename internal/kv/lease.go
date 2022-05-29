@@ -14,12 +14,16 @@ var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
 
 const DefaultLeaseholder = 0
 
+type LeaseMessage struct {
+	Operation Operation
+}
+
 type leaseProxy struct {
 	Config
 	host     node.ID
 	localTo  address.Address
 	remoteTo address.Address
-	confluence.Switch[Batch]
+	confluence.Switch[batch]
 }
 
 func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address) *leaseProxy {
@@ -29,7 +33,7 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 	return lp
 }
 
-func (lp *leaseProxy) _switch(_ confluence.Context, batch Batch) address.Address {
+func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address {
 	if len(batch.Operations) != 1 {
 		panic("cannot process more than one op at a time")
 	}
@@ -40,7 +44,7 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch Batch) address.Address
 	)
 	switch op.Variant {
 	case Set:
-		local, err = lp.setIsLocal(op)
+		local, err = lp.processSet(op)
 	case Delete:
 		local, err = lp.processDelete(op)
 	}
@@ -51,12 +55,11 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch Batch) address.Address
 	}
 	if local {
 		return lp.localTo
-	} else {
-		return lp.remoteTo
 	}
+	return lp.remoteTo
 }
 
-func (lp *leaseProxy) setIsLocal(op Operation) (bool, error) {
+func (lp *leaseProxy) processSet(op Operation) (bool, error) {
 	if op.Leaseholder == DefaultLeaseholder {
 		op.Leaseholder = lp.host
 	}
@@ -80,44 +83,44 @@ func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
 }
 
 func (lp *leaseProxy) getLease(key []byte) (node.ID, error) {
-	op, err := Load(lp.Engine, key)
+	op, err := loadMetadata(lp.Engine, key)
 	return op.Leaseholder, err
 }
 
 type leaseSender struct {
 	Config
-	confluence.CoreSink[Batch]
+	confluence.CoreSink[batch]
 }
 
-func newLeaseSender(cfg Config) Segment { return &leaseSender{Config: cfg} }
+func newLeaseSender(cfg Config) segment { return &leaseSender{Config: cfg} }
 
-func (lf *leaseSender) sink(ctx confluence.Context, batch Batch) {
+func (lf *leaseSender) sink(ctx confluence.Context, batch batch) {
 	defer close(batch.Errors)
 	if len(batch.Operations) != 1 {
 		panic("cannot process more than one op at a time")
 	}
 	op := batch.Operations[0]
-	addr, ok := lf.Cluster.Resolve(op.Leaseholder)
-	if !ok {
-		batch.Errors <- ErrLeaseNotTransferable
+	addr, err := lf.Cluster.Resolve(op.Leaseholder)
+	if err != nil {
+		batch.Errors <- err
 		return
 	}
-	if _, err := lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
+	if _, err = lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
 		batch.Errors <- err
 	}
 }
 
 type leaseReceiver struct {
 	Config
-	confluence.CoreSource[Batch]
+	confluence.CoreSource[batch]
 }
 
-func newLeaseReceiver(cfg Config) Segment { return &leaseReceiver{Config: cfg} }
+func newLeaseReceiver(cfg Config) segment { return &leaseReceiver{Config: cfg} }
 
 func (lr *leaseReceiver) Flow(ctx confluence.Context) { lr.LeaseTransport.Handle(lr.handle) }
 
 func (lr *leaseReceiver) handle(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
-	batch := Batch{Errors: make(chan error, 1), Operations: []Operation{msg.Operation}}
+	batch := batch{Errors: make(chan error, 1), Operations: []Operation{msg.Operation}}
 	if ctx.Err() != nil {
 		return types.Nil{}, ctx.Err()
 	}

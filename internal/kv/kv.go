@@ -50,6 +50,26 @@ func (k *kv) Set(key []byte, value []byte) error {
 	return k.SetWithLease(key, DefaultLeaseholder, value)
 }
 
+func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
+
+const (
+	versionFilterAddr     = "versionFilter"
+	versionAssignerAddr   = "versionAssigner"
+	persistAddr           = "persist"
+	emitterAddr           = "emitter"
+	operationSenderAddr   = "opSender"
+	operationReceiverAddr = "opReceiver"
+	feedbackSenderAddr    = "feedbackSender"
+	feedbackReceiverAddr  = "feedbackReceiver"
+	recoveryTransformAddr = "recoveryTransform"
+	leaseSenderAddr       = "leaseSender"
+	leaseReceiverAddr     = "leaseReceiver"
+	leaseProxyAddr        = "leaseProxy"
+	executorAddr          = "executor"
+)
+
+type segment = confluence.Segment[batch]
+
 func Open(cfg Config) (KV, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -68,7 +88,7 @@ func Open(cfg Config) (KV, error) {
 	ctx.Shutdown = cfg.Shutdown
 	ctx.ErrC = make(chan error, 10)
 
-	pipeline := confluence.NewPipeline[Batch]()
+	pipeline := confluence.NewPipeline[batch]()
 	pipeline.Segment(executorAddr, exec)
 	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
 	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionFilterAddr, leaseSenderAddr))
@@ -85,48 +105,48 @@ func Open(cfg Config) (KV, error) {
 
 	builder := pipeline.NewRouteBuilder()
 
-	builder.Route(confluence.MultiRouter[Batch]{
+	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{executorAddr, leaseReceiverAddr},
 		ToAddresses:   []address.Address{leaseProxyAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,
 	})
 
-	builder.Route(confluence.MultiRouter[Batch]{
+	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{leaseProxyAddr},
 		ToAddresses:   []address.Address{versionAssignerAddr, leaseSenderAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,
 	})
 
-	builder.Route(confluence.MultiRouter[Batch]{
+	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr},
 		ToAddresses:   []address.Address{versionFilterAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,
 	})
 
-	builder.Route(confluence.MultiRouter[Batch]{
+	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{versionFilterAddr},
 		ToAddresses:   []address.Address{feedbackSenderAddr, persistAddr},
 		Stitch:        confluence.StitchWeave,
 		Capacity:      1,
 	})
 
-	builder.Route(confluence.UnaryRouter[Batch]{
+	builder.Route(confluence.UnaryRouter[batch]{
 		FromAddr: feedbackReceiverAddr,
 		ToAddr:   recoveryTransformAddr,
 		Capacity: 1,
 	})
 
-	builder.Route(confluence.MultiRouter[Batch]{
+	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{persistAddr, recoveryTransformAddr},
 		ToAddresses:   []address.Address{emitterAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,
 	})
 
-	builder.Route(confluence.UnaryRouter[Batch]{
+	builder.Route(confluence.UnaryRouter[batch]{
 		FromAddr: emitterAddr,
 		ToAddr:   operationSenderAddr,
 		Capacity: 1,

@@ -6,6 +6,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/cluster/store"
@@ -19,16 +20,20 @@ import (
 
 type State = store.State
 
+var (
+	ErrNodeNotFound = errors.New("node not found")
+)
+
 // Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
 	// Host returns the host Node (i.e. the node that Host is called on).
 	Host() node.Node
-	// Members returns a node.Group of all nodes in the cluster.
-	Members() node.Group
-	// Member returns the member Node with the given ID.
-	Member(id node.ID) (node.Node, bool)
+	// Nodes returns a node.Group of all nodes in the cluster.
+	Nodes() node.Group
+	// Node returns the member Node with the given ID.
+	Node(id node.ID) (node.Node, error)
 	// Resolve resolves the address of a node with the given ID.
-	Resolve(id node.ID) (address.Address, bool)
+	Resolve(id node.ID) (address.Address, error)
 	// Reader returns a copy of the current cluster state. This snapshot is safe
 	// to modify, but is not guaranteed to remain up to date.
 	xstore.Reader[State]
@@ -64,10 +69,10 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		gossipInitialState(ctx, c.Store, c.Config, peers)
 	} else if !s.Valid() && len(peers) == 0 {
 		c.Store.SetHost(node.Node{ID: 1, Address: addr})
-		pledge_.Arbitrate(c.Members, c.Pledge)
+		pledge_.Arbitrate(c.Nodes, c.Pledge)
 		cfg.Logger.Info("no peers provided, bootstrapping new cluster")
 	} else {
-		pledge_.Arbitrate(c.Members, c.Pledge)
+		pledge_.Arbitrate(c.Nodes, c.Pledge)
 		cfg.Logger.Info("existing cluster found in storage. restarting activities.")
 	}
 
@@ -85,13 +90,19 @@ func (c *cluster) GetState() State { return c.Store.GetState() }
 
 func (c *cluster) Host() node.Node { return c.Store.GetHost() }
 
-func (c *cluster) Members() node.Group { return c.GetState().Nodes }
+func (c *cluster) Nodes() node.Group { return c.GetState().Nodes }
 
-func (c *cluster) Member(id node.ID) (node.Node, bool) { return c.Store.Get(id) }
-
-func (c *cluster) Resolve(id node.ID) (address.Address, bool) {
+func (c *cluster) Node(id node.ID) (node.Node, error) {
 	n, ok := c.Store.Get(id)
-	return n.Address, ok
+	if !ok {
+		return n, ErrNodeNotFound
+	}
+	return n, nil
+}
+
+func (c *cluster) Resolve(id node.ID) (address.Address, error) {
+	n, err := c.Node(id)
+	return n.Address, err
 }
 
 func openStore(openStore Config) (store.Store, error) {

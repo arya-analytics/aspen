@@ -7,11 +7,11 @@ import (
 
 type recovery struct {
 	Config
-	confluence.Transform[Batch]
+	confluence.Transform[batch]
 	repetitions map[string]int
 }
 
-func (r *recovery) transform(batch Batch) (oBatch Batch) {
+func (r *recovery) transform(batch batch) (oBatch batch) {
 	for _, op := range batch.Operations {
 		key, err := kv_.CompositeKey(op.Key, op.Version)
 		if err != nil {
@@ -28,7 +28,7 @@ func (r *recovery) transform(batch Batch) (oBatch Batch) {
 	return oBatch
 }
 
-func newRecoveryTransform(cfg Config) Segment {
+func newRecoveryTransform(cfg Config) segment {
 	r := &recovery{Config: cfg, repetitions: make(map[string]int)}
 	r.Transform.Transform = r.transform
 }

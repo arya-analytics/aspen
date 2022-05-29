@@ -7,13 +7,13 @@ import (
 
 type emitter struct {
 	Config
-	store.Observable[Map]
-	confluence.Emitter[Batch]
+	store.Observable[operationMap]
+	confluence.Emitter[batch]
 }
 
-func newEmitter(cfg Config) Segment {
+func newEmitter(cfg Config) segment {
 	s := &emitter{
-		Observable: store.ObservableWrap[Map](store.New(func(m Map) Map { return m.Copy() })),
+		Observable: store.ObservableWrap[operationMap](store.New(func(m operationMap) operationMap { return m.Copy() })),
 		Config:     cfg,
 	}
 	s.Emitter.Emit = s.Emit
@@ -22,12 +22,12 @@ func newEmitter(cfg Config) Segment {
 	return s
 }
 
-func (u *emitter) Store(_ confluence.Context, batch Batch) {
+func (u *emitter) Store(_ confluence.Context, batch batch) {
 	snap := u.Observable.GetState()
 	snap.Merge(batch.Operations)
 	u.Observable.SetState(snap)
 }
 
-func (u *emitter) Emit(_ confluence.Context) Batch {
-	return Batch{Operations: u.Observable.GetState().Operations()}
+func (u *emitter) Emit(_ confluence.Context) batch {
+	return batch{Operations: u.Observable.GetState().Operations()}
 }

@@ -7,18 +7,18 @@ import (
 
 type persist struct {
 	Config
-	confluence.Transform[Batch]
+	confluence.Transform[batch]
 }
 
-func newPersist(cfg Config) Segment {
+func newPersist(cfg Config) segment {
 	ps := &persist{Config: cfg}
 	ps.Transform.Transform = ps.persist
 	return ps
 }
 
-func (ps *persist) persist(batch Batch) Batch {
-	var accepted Batch
-	for _, op := range batch.Operations {
+func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
+	var accepted batch
+	for _, op := range b.Operations {
 		var err error
 		if op.Variant == Set {
 			err = ps.Engine.Set(op.Key, op.Value)
@@ -26,18 +26,19 @@ func (ps *persist) persist(batch Batch) Batch {
 			err = ps.Engine.Delete(op.Key)
 		}
 		if err != nil {
-			batch.Errors <- err
+			b.Errors <- err
 			continue
 		}
-		key, err := Key(op.Key)
+		key, err := metadataKey(op.Key)
 		if err != nil {
-			panic(err)
+			b.Errors <- err
+			return b, false
 		}
 		if err = kv_.Flush(ps.Engine, key, op); err != nil {
-			batch.Errors <- err
-			continue
+			b.Errors <- err
+			return b, false
 		}
 		accepted.Operations = append(accepted.Operations, op)
 	}
-	return batch
+	return accepted, true
 }

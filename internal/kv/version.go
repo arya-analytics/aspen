@@ -17,18 +17,18 @@ type versionFilter struct {
 	}
 	acceptedTo address.Address
 	rejectedTo address.Address
-	confluence.BatchSwitch[Batch]
+	confluence.BatchSwitch[batch]
 }
 
-func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) Segment {
+func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) segment {
 	s := &versionFilter{Config: cfg}
 	s.state.versions = make(map[node.ID]version.Counter)
 	s.BatchSwitch.Switch = s._switch
 	return s
 }
 
-func (vc *versionFilter) _switch(batch Batch) map[address.Address]Batch {
-	var rejected, accepted Batch
+func (vc *versionFilter) _switch(batch batch) map[address.Address]batch {
+	var rejected, accepted batch
 	for _, op := range batch.Operations {
 		if vc.olderVersion(op) {
 			vc.setVersion(op.Leaseholder, op.Version)
@@ -36,7 +36,7 @@ func (vc *versionFilter) _switch(batch Batch) map[address.Address]Batch {
 		}
 		rejected.Operations = append(rejected.Operations, op)
 	}
-	return map[address.Address]Batch{vc.acceptedTo: accepted, vc.rejectedTo: rejected}
+	return map[address.Address]batch{vc.acceptedTo: accepted, vc.rejectedTo: rejected}
 }
 
 func (vc *versionFilter) olderVersion(op Operation) bool {
@@ -60,7 +60,7 @@ func (vc *versionFilter) setVersion(leaseholder node.ID, version version.Counter
 }
 
 func (vc *versionFilter) getFromKV(key []byte) (version.Counter, error) {
-	key, err := Key(key)
+	key, err := metadataKey(key)
 	if err != nil {
 		return 0, err
 	}
@@ -73,10 +73,10 @@ const versionCounterKey = "ver"
 type versionAssigner struct {
 	Config
 	counter *kv_.PersistedCounter
-	confluence.Transform[Batch]
+	confluence.Transform[batch]
 }
 
-func newVersionAssigner(cfg Config) (Segment, error) {
+func newVersionAssigner(cfg Config) (segment, error) {
 	c, err := kv_.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
 	v := &versionAssigner{
 		Config:  cfg,
@@ -85,12 +85,12 @@ func newVersionAssigner(cfg Config) (Segment, error) {
 	return v, err
 }
 
-func (va *versionAssigner) transform(batch Batch) Batch {
+func (va *versionAssigner) transform(batch batch) batch {
 	latestVer := va.counter.Value()
 	if _, err := va.counter.Increment(int64(len(batch.Operations))); err != nil {
 		batch.Errors <- err
 		close(batch.Errors)
-		return Batch{}
+		return batch{}
 	}
 	for i, op := range batch.Operations {
 		op.Version = version.Counter(latestVer + int64(i))

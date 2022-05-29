@@ -33,7 +33,7 @@ func removeDuplicateValues(intSlice []node.ID) []node.ID {
 	return list
 }
 
-var _ = Describe("Member", func() {
+var _ = Describe("Node", func() {
 	var (
 		logger *zap.Logger
 	)
