@@ -8,7 +8,9 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/rand"
 	tmock "github.com/arya-analytics/x/transport/mock"
+	"time"
 )
 
 func Provision(n int, cfg cluster.Config) ([]cluster.Cluster, error) {
@@ -30,7 +32,8 @@ func Provision(n int, cfg cluster.Config) ([]cluster.Cluster, error) {
 			Gossip:  gossip.Config{Transport: gossipTransport},
 			Storage: kvmock.New(),
 		}.Merge(cfg)
-		clust, err := cluster.Join(ctx, gossipTransport.Address, peerAddresses, cCfg)
+		time.Sleep(200 * time.Millisecond)
+		clust, err := cluster.Join(ctx, gossipTransport.Address, rand.SubSlice(peerAddresses, 5), cCfg)
 		if err != nil {
 			return nil, err
 		}

@@ -7,7 +7,6 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -41,7 +40,6 @@ func (g *Gossip) GossipOnce(ctx context.Context) error {
 		g.Logger.Warn("no healthy nodes to gossip with")
 		return nil
 	}
-	log.Info(g.Logger)
 	g.Logger.Debug("gossip",
 		zap.Uint32("initiator", uint32(snap.HostID)),
 		zap.Uint32("peer", uint32(peer.ID)),
