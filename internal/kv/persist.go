@@ -4,6 +4,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/util/errutil"
+	"go.uber.org/zap"
 )
 
 type persist struct {
@@ -19,8 +20,8 @@ func newPersist(cfg Config) segment {
 
 func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 	var accepted batch
-	defer close(b.errors)
 	c := errutil.NewCatchSimple(errutil.WithHooks(errutil.NewPipeHook(b.errors)))
+	ps.Logger.Debug("persisting batch", zap.Int("numOps", len(b.operations)))
 	for _, op := range b.operations {
 		if op.Variant == Set {
 			c.Exec(func() error { return ps.Engine.Set(op.Key, op.Value) })

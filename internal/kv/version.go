@@ -6,6 +6,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/version"
+	"go.uber.org/zap"
 	"sync"
 )
 
@@ -21,22 +22,41 @@ type versionFilter struct {
 }
 
 func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) segment {
-	s := &versionFilter{Config: cfg}
+	s := &versionFilter{Config: cfg, acceptedTo: acceptedTo, rejectedTo: rejectedTo}
 	s.state.versions = make(map[node.ID]version.Counter)
 	s.BatchSwitch.Switch = s._switch
 	return s
 }
 
-func (vc *versionFilter) _switch(batch batch) map[address.Address]batch {
+func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Address]batch {
+	vc.Logger.Debug("versionFilter")
 	var rejected, accepted batch
-	for _, op := range batch.operations {
+	rejected.errors = b.errors
+	rejected.sender = b.sender
+	accepted.errors = b.errors
+	rejected.sender = b.sender
+	for _, op := range b.operations {
 		if vc.olderVersion(op) {
 			vc.setVersion(op.Leaseholder, op.Version)
 			accepted.operations = append(accepted.operations, op)
+		} else {
+			rejected.operations = append(rejected.operations, op)
 		}
-		rejected.operations = append(rejected.operations, op)
 	}
-	return map[address.Address]batch{vc.acceptedTo: accepted, vc.rejectedTo: rejected}
+	vc.Logger.Debug("versionFilter",
+		zap.Int("accepted", len(accepted.operations)),
+		zap.Int("rejected", len(rejected.operations)),
+		zap.String("acceptedTo", string(vc.acceptedTo)),
+		zap.String("rejectedTo", string(vc.rejectedTo)),
+	)
+	resMap := map[address.Address]batch{}
+	if len(accepted.operations) > 0 {
+		resMap[vc.acceptedTo] = accepted
+	}
+	if len(rejected.operations) > 0 {
+		resMap[vc.rejectedTo] = rejected
+	}
+	return resMap
 }
 
 func (vc *versionFilter) olderVersion(op Operation) bool {
@@ -78,22 +98,25 @@ type versionAssigner struct {
 
 func newVersionAssigner(cfg Config) (segment, error) {
 	c, err := kv_.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
-	v := &versionAssigner{
-		Config:  cfg,
-		counter: c,
-	}
+	v := &versionAssigner{Config: cfg, counter: c}
+	v.Transform.Transform = v.transform
 	return v, err
 }
 
-func (va *versionAssigner) transform(batch batch) batch {
+func (va *versionAssigner) transform(ctx confluence.Context, b batch) (batch, bool) {
+	va.Logger.Info("versionAssigner")
 	latestVer := va.counter.Value()
-	if _, err := va.counter.Increment(int64(len(batch.operations))); err != nil {
-		batch.errors <- err
-		close(batch.errors)
-		return batch{}
+	if _, err := va.counter.Increment(int64(len(b.operations))); err != nil {
+		b.errors <- err
+		close(b.errors)
+		return batch{}, false
 	}
-	for i, op := range batch.operations {
+	for i, op := range b.operations {
 		op.Version = version.Counter(latestVer + int64(i))
+		va.Logger.Debug("versionAssigner",
+			zap.String("key", string(op.Key)),
+			zap.Int64("version", int64(op.Version)),
+		)
 	}
-	return batch
+	return b, true
 }

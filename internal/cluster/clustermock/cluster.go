@@ -29,8 +29,8 @@ func Provision(n int, cfg cluster.Config) ([]cluster.Cluster, error) {
 			Pledge:  pledge.Config{Transport: pledgeTransport},
 			Gossip:  gossip.Config{Transport: gossipTransport},
 			Storage: kvmock.New(),
-		}
-		clust, err := cluster.Join(ctx, gossipTransport.Address, peerAddresses, cCfg.Merge(cfg))
+		}.Merge(cfg)
+		clust, err := cluster.Join(ctx, gossipTransport.Address, peerAddresses, cCfg)
 		if err != nil {
 			return nil, err
 		}

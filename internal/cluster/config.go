@@ -32,12 +32,21 @@ type Config struct {
 }
 
 func (cfg Config) Merge(def Config) Config {
+	if cfg.Logger == nil {
+		cfg.Logger = def.Logger
+	}
+	if cfg.Shutdown == nil {
+		cfg.Shutdown = def.Shutdown
+	}
 	if cfg.Pledge.Logger == nil {
 		cfg.Pledge.Logger = cfg.Logger
 	}
 	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 	if cfg.Gossip.Logger == nil {
 		cfg.Gossip.Logger = cfg.Logger
+	}
+	if cfg.Gossip.Shutdown == nil {
+		cfg.Gossip.Shutdown = cfg.Shutdown
 	}
 	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
 	return cfg

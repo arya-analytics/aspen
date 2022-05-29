@@ -42,14 +42,17 @@ type kv struct {
 	exec *executor
 }
 
+// SetWithLease implements KV.
 func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
 	return k.exec.setWithLease(key, leaseholder, value)
 }
 
+// Set implements KV.
 func (k *kv) Set(key []byte, value []byte) error {
 	return k.SetWithLease(key, DefaultLeaseholder, value)
 }
 
+// Delete implements KV.
 func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
 
 const (
@@ -67,8 +70,6 @@ const (
 	leaseProxyAddr        = "leaseProxy"
 	executorAddr          = "executor"
 )
-
-type segment = confluence.Segment[batch]
 
 func Open(cfg Config) (KV, error) {
 	if err := cfg.Validate(); err != nil {
@@ -88,16 +89,18 @@ func Open(cfg Config) (KV, error) {
 	ctx.Shutdown = cfg.Shutdown
 	ctx.ErrC = make(chan error, 10)
 
+	emitterStore := newEmitter(cfg)
+
 	pipeline := confluence.NewPipeline[batch]()
 	pipeline.Segment(executorAddr, exec)
 	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
-	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionFilterAddr, leaseSenderAddr))
-	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg))
+	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
+	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
 	pipeline.Segment(versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
 	pipeline.Segment(versionAssignerAddr, va)
 	pipeline.Segment(leaseSenderAddr, newLeaseSender(cfg))
 	pipeline.Segment(persistAddr, newPersist(cfg))
-	pipeline.Segment(emitterAddr, newEmitter(cfg))
+	pipeline.Segment(emitterAddr, emitterStore)
 	pipeline.Segment(operationSenderAddr, newOperationSender(cfg))
 	pipeline.Segment(feedbackSenderAddr, newFeedbackSender(cfg))
 	pipeline.Segment(feedbackReceiverAddr, newFeedbackReceiver(cfg))
@@ -115,12 +118,12 @@ func Open(cfg Config) (KV, error) {
 	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{leaseProxyAddr},
 		ToAddresses:   []address.Address{versionAssignerAddr, leaseSenderAddr},
-		Stitch:        confluence.StitchLinear,
+		Stitch:        confluence.StitchWeave,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr},
+		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
 		ToAddresses:   []address.Address{versionFilterAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,

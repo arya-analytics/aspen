@@ -11,7 +11,7 @@ type emitter struct {
 	confluence.Emitter[batch]
 }
 
-func newEmitter(cfg Config) segment {
+func newEmitter(cfg Config) *emitter {
 	s := &emitter{
 		Observable: store.ObservableWrap[operationMap](store.New(func(m operationMap) operationMap { return m.Copy() })),
 		Config:     cfg,

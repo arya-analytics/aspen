@@ -26,12 +26,14 @@ var _ = Describe("KV", func() {
 		sd          shutdown.Shutdown
 	)
 	BeforeEach(func() {
+		opNet = tmock.NewNetwork[kv.OperationsMessage, kv.OperationsMessage]()
+		feedbackNet = tmock.NewNetwork[kv.FeedbackMessage, types.Nil]()
+		leaseNet = tmock.NewNetwork[kv.LeaseMessage, types.Nil]()
+		sd = shutdown.New()
 		clusterSize = 2
 		logger, _ = zap.NewDevelopment()
 		var err error
-		clusterAPIs, err = clustermock.Provision(clusterSize, cluster.Config{
-			Logger: logger,
-		})
+		clusterAPIs, err = clustermock.Provision(clusterSize, cluster.Config{Logger: logger, Shutdown: sd})
 		for _, api := range clusterAPIs {
 			kvEngine := kvmock.New()
 			opT := opNet.Route("")
@@ -54,15 +56,20 @@ var _ = Describe("KV", func() {
 
 		Expect(err).ToNot(HaveOccurred())
 	})
+	AfterEach(func() {
+		Expect(sd.Shutdown()).To(Succeed())
+	})
 	Context("Host as Leaseholder", func() {
 		Describe("Set", func() {
-			kv1 := kvAPIs[0]
-			kv2 := kvAPIs[1]
-			Expect(kv1.Set([]byte("hello"), []byte("world"))).To(Succeed())
-			time.Sleep(500 * time.Millisecond)
-			v, err := kv2.Get([]byte("hello"))
-			Expect(err).To(Succeed())
-			Expect(v).To(Equal([]byte("world")))
+			It("Should propagate a set operation", func() {
+				kv1 := kvAPIs[0]
+				//kv2 := kvAPIs[1]
+				Expect(kv1.Set([]byte("hello"), []byte("world"))).To(Succeed())
+				time.Sleep(500 * time.Second)
+				//v, err := kv2.Get([]byte("hello"))
+				//Expect(err).To(Succeed())
+				//Expect(v).To(Equal([]byte("world")))
+			})
 		})
 	})
 })

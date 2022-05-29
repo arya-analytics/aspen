@@ -2,6 +2,7 @@ package kv
 
 import (
 	"github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/filter"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/util/errutil"
@@ -29,7 +30,7 @@ type Operation struct {
 	Variant     Variant
 	Version     version.Counter
 	Leaseholder node.ID
-	State       State
+	state       State
 }
 
 // Load implements the kv.Loader interface.
@@ -65,7 +66,7 @@ func loadMetadata(kve kv_.Reader, key []byte) (op Operation, err error) {
 type Operations []Operation
 
 func (ops Operations) whereState(state State) Operations {
-	return ops.where(func(op Operation) bool { return op.State == state })
+	return ops.where(func(op Operation) bool { return op.state == state })
 }
 
 func (ops Operations) where(cond func(Operation) bool) Operations { return filter.Slice(ops, cond) }
@@ -75,6 +76,8 @@ type batch struct {
 	operations Operations
 	errors     chan error
 }
+
+type segment = confluence.Segment[batch]
 
 type operationMap map[string]Operation
 

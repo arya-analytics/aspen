@@ -53,16 +53,16 @@ func (cfg Config) Merge(def Config) Config {
 }
 
 func (cfg Config) Validate() error {
-	if cfg.Cluster != nil {
+	if cfg.Cluster == nil {
 		return errors.New("cluster must be set")
 	}
-	if cfg.OperationsTransport != nil {
+	if cfg.OperationsTransport == nil {
 		return errors.New("operations transport must be set")
 	}
-	if cfg.FeedbackTransport != nil {
+	if cfg.FeedbackTransport == nil {
 		return errors.New("feedback transport must be set")
 	}
-	if cfg.LeaseTransport != nil {
+	if cfg.LeaseTransport == nil {
 		return errors.New("lease transport must be set")
 	}
 	if cfg.Engine == nil {

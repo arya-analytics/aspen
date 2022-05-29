@@ -3,15 +3,17 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
+	"go.uber.org/zap"
 )
 
-type recovery struct {
+type recoveryTransform struct {
 	Config
 	confluence.Transform[batch]
 	repetitions map[string]int
 }
 
-func (r *recovery) transform(ctx confluence.Context, batch batch) (oBatch batch, ok bool) {
+func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBatch batch, ok bool) {
+	r.Logger.Debug("recoveryTransform", zap.Int("numOps", len(batch.operations)))
 	for _, op := range batch.operations {
 		key, err := kv_.CompositeKey(op.Key, op.Version)
 		if err != nil {
@@ -19,7 +21,8 @@ func (r *recovery) transform(ctx confluence.Context, batch batch) (oBatch batch,
 		}
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
-			op.State = Recovered
+			r.Logger.Debug("recovering op", zap.String("key", strKey))
+			op.state = Recovered
 			oBatch.operations = append(oBatch.operations, op)
 			delete(r.repetitions, strKey)
 		}
@@ -29,7 +32,7 @@ func (r *recovery) transform(ctx confluence.Context, batch batch) (oBatch batch,
 }
 
 func newRecoveryTransform(cfg Config) segment {
-	r := &recovery{Config: cfg, repetitions: make(map[string]int)}
+	r := &recoveryTransform{Config: cfg, repetitions: make(map[string]int)}
 	r.Transform.Transform = r.transform
 	return r
 }
