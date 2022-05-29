@@ -29,12 +29,12 @@ func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address
 
 func (vc *versionFilter) _switch(batch batch) map[address.Address]batch {
 	var rejected, accepted batch
-	for _, op := range batch.Operations {
+	for _, op := range batch.operations {
 		if vc.olderVersion(op) {
 			vc.setVersion(op.Leaseholder, op.Version)
-			accepted.Operations = append(accepted.Operations, op)
+			accepted.operations = append(accepted.operations, op)
 		}
-		rejected.Operations = append(rejected.Operations, op)
+		rejected.operations = append(rejected.operations, op)
 	}
 	return map[address.Address]batch{vc.acceptedTo: accepted, vc.rejectedTo: rejected}
 }
@@ -87,12 +87,12 @@ func newVersionAssigner(cfg Config) (segment, error) {
 
 func (va *versionAssigner) transform(batch batch) batch {
 	latestVer := va.counter.Value()
-	if _, err := va.counter.Increment(int64(len(batch.Operations))); err != nil {
-		batch.Errors <- err
-		close(batch.Errors)
+	if _, err := va.counter.Increment(int64(len(batch.operations))); err != nil {
+		batch.errors <- err
+		close(batch.errors)
 		return batch{}
 	}
-	for i, op := range batch.Operations {
+	for i, op := range batch.operations {
 		op.Version = version.Counter(latestVer + int64(i))
 	}
 	return batch

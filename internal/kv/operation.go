@@ -23,8 +23,6 @@ const (
 	Recovered
 )
 
-type Executor func(op Operation) error
-
 type Operation struct {
 	Key         []byte
 	Value       []byte
@@ -73,9 +71,9 @@ func (ops Operations) whereState(state State) Operations {
 func (ops Operations) where(cond func(Operation) bool) Operations { return filter.Slice(ops, cond) }
 
 type batch struct {
-	Sender     node.ID
-	Operations Operations
-	Errors     chan error
+	sender     node.ID
+	operations Operations
+	errors     chan error
 }
 
 type operationMap map[string]Operation

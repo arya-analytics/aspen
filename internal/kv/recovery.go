@@ -11,8 +11,8 @@ type recovery struct {
 	repetitions map[string]int
 }
 
-func (r *recovery) transform(batch batch) (oBatch batch) {
-	for _, op := range batch.Operations {
+func (r *recovery) transform(ctx confluence.Context, batch batch) (oBatch batch, ok bool) {
+	for _, op := range batch.operations {
 		key, err := kv_.CompositeKey(op.Key, op.Version)
 		if err != nil {
 			panic(err)
@@ -20,15 +20,16 @@ func (r *recovery) transform(batch batch) (oBatch batch) {
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
 			op.State = Recovered
-			oBatch.Operations = append(oBatch.Operations, op)
+			oBatch.operations = append(oBatch.operations, op)
 			delete(r.repetitions, strKey)
 		}
 		r.repetitions[strKey]++
 	}
-	return oBatch
+	return oBatch, true
 }
 
 func newRecoveryTransform(cfg Config) segment {
 	r := &recovery{Config: cfg, repetitions: make(map[string]int)}
 	r.Transform.Transform = r.transform
+	return r
 }

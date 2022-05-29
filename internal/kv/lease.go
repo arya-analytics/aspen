@@ -34,11 +34,11 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 }
 
 func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address {
-	if len(batch.Operations) != 1 {
+	if len(batch.operations) != 1 {
 		panic("cannot process more than one op at a time")
 	}
 	var (
-		op    = batch.Operations[0]
+		op    = batch.operations[0]
 		err   error
 		local bool
 	)
@@ -49,8 +49,8 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address
 		local, err = lp.processDelete(op)
 	}
 	if err != nil {
-		batch.Errors <- err
-		close(batch.Errors)
+		batch.errors <- err
+		close(batch.errors)
 		return ""
 	}
 	if local {
@@ -95,18 +95,18 @@ type leaseSender struct {
 func newLeaseSender(cfg Config) segment { return &leaseSender{Config: cfg} }
 
 func (lf *leaseSender) sink(ctx confluence.Context, batch batch) {
-	defer close(batch.Errors)
-	if len(batch.Operations) != 1 {
+	defer close(batch.errors)
+	if len(batch.operations) != 1 {
 		panic("cannot process more than one op at a time")
 	}
-	op := batch.Operations[0]
+	op := batch.operations[0]
 	addr, err := lf.Cluster.Resolve(op.Leaseholder)
 	if err != nil {
-		batch.Errors <- err
+		batch.errors <- err
 		return
 	}
 	if _, err = lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
-		batch.Errors <- err
+		batch.errors <- err
 	}
 }
 
@@ -120,12 +120,12 @@ func newLeaseReceiver(cfg Config) segment { return &leaseReceiver{Config: cfg} }
 func (lr *leaseReceiver) Flow(ctx confluence.Context) { lr.LeaseTransport.Handle(lr.handle) }
 
 func (lr *leaseReceiver) handle(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
-	batch := batch{Errors: make(chan error, 1), Operations: []Operation{msg.Operation}}
+	batch := batch{errors: make(chan error, 1), operations: []Operation{msg.Operation}}
 	if ctx.Err() != nil {
 		return types.Nil{}, ctx.Err()
 	}
 	for _, inlet := range lr.Out {
 		inlet.Inlet() <- batch
 	}
-	return types.Nil{}, <-batch.Errors
+	return types.Nil{}, <-batch.errors
 }

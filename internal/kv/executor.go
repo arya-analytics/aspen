@@ -23,9 +23,9 @@ func (e *executor) delete(key []byte) error {
 }
 
 func (e *executor) exec(op Operation) error {
-	batch := batch{Errors: make(chan error, 1), Operations: Operations{op}}
+	batch := batch{errors: make(chan error, 1), operations: Operations{op}}
 	for _, inlet := range e.Out {
 		inlet.Inlet() <- batch
 	}
-	return <-batch.Errors
+	return <-batch.errors
 }

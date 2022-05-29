@@ -45,7 +45,7 @@ func newOperationSender(cfg Config) segment {
 	return os
 }
 
-func (g *operationSender) transform(ctx confluence.Context, batch batch) (batch, bool) {
+func (g *operationSender) transform(ctx confluence.Context, b batch) (batch, bool) {
 	snap := g.Cluster.GetState()
 	peer := gossip.RandomPeer(snap)
 	if peer.Address == "" {
@@ -55,12 +55,12 @@ func (g *operationSender) transform(ctx confluence.Context, batch batch) (batch,
 		zap.Uint32("initiator", uint32(snap.HostID)),
 		zap.Uint32("peer", uint32(peer.ID)),
 	)
-	sync := OperationsMessage{Operations: batch.Operations, Sender: snap.HostID}
+	sync := OperationsMessage{Operations: b.operations, Sender: snap.HostID}
 	ack, err := g.OperationsTransport.Send(ctx.Ctx, peer.Address, sync)
 	if err != nil {
 		ctx.ErrC <- err
 	}
-	return batch{Operations: ack.Operations, Sender: ack.Sender}, true
+	return batch{operations: ack.Operations, sender: ack.Sender}, true
 }
 
 type operationReceiver struct {
@@ -75,7 +75,7 @@ func newOperationReceiver(cfg Config) segment { return &operationReceiver{Config
 func (g *operationReceiver) Flow(ctx confluence.Context) { g.OperationsTransport.Handle(g.handle) }
 
 func (g *operationReceiver) handle(ctx context.Context, message OperationsMessage) (OperationsMessage, error) {
-	batch := batch{Operations: message.Operations, Sender: message.Sender}
+	batch := batch{operations: message.Operations, sender: message.Sender}
 	for _, inlet := range g.Out {
 		inlet.Inlet() <- batch
 	}
@@ -96,10 +96,10 @@ func newFeedbackSender(cfg Config) segment {
 
 func (f *feedbackSender) sink(ctx confluence.Context, batch batch) {
 	msg := FeedbackMessage{}
-	for _, op := range batch.Operations {
+	for _, op := range batch.operations {
 		msg.Feedback = append(msg.Feedback, Feedback{Key: op.Key, Version: op.Version})
 	}
-	sender, _ := f.Cluster.Node(batch.Sender)
+	sender, _ := f.Cluster.Node(batch.sender)
 	if _, err := f.FeedbackTransport.Send(ctx.Ctx, sender.Address, msg); err != nil {
 		ctx.ErrC <- err
 	}
@@ -115,9 +115,9 @@ func newFeedbackReceiver(cfg Config) segment { return &feedbackReceiver{Config: 
 func (f *feedbackReceiver) Flow(ctx confluence.Context) { f.FeedbackTransport.Handle(f.handle) }
 
 func (f *feedbackReceiver) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
-	op := batch{Sender: message.Sender}
+	op := batch{sender: message.Sender}
 	for _, feedback := range message.Feedback {
-		op.Operations = append(op.Operations, Operation{Key: feedback.Key, Version: feedback.Version})
+		op.operations = append(op.operations, Operation{Key: feedback.Key, Version: feedback.Version})
 	}
 	for _, inlet := range f.Out {
 		inlet.Inlet() <- op
