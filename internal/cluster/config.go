@@ -58,5 +58,6 @@ func DefaultConfig() Config {
 		StorageKey: []byte("aspen.cluster"),
 		Logger:     zap.NewNop(),
 		Gossip:     gossip.DefaultConfig(),
+		Shutdown:   shutdown.New(),
 	}
 }

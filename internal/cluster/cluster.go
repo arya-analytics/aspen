@@ -109,9 +109,12 @@ func (c *cluster) Resolve(id node.ID) (address.Address, error) {
 	return n.Address, err
 }
 
-func openStore(openStore Config) (store.Store, error) {
+func openStore(cfg Config) (store.Store, error) {
 	s := store.New()
-	return s, kv.Load(openStore.Storage, openStore.StorageKey, s)
+	if cfg.Storage == nil {
+		return s, nil
+	}
+	return s, kv.Load(cfg.Storage, cfg.StorageKey, s)
 }
 
 func pledge(ctx context.Context, peers []address.Address, c *cluster) (node.ID, error) {
