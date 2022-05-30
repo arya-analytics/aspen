@@ -69,7 +69,7 @@ var _ = Describe("KV", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(v).To(Equal([]byte("value")))
 			})
-			It("Should forward an updated to the leaseholder", func() {
+			It("Should forward an update to the leaseholder", func() {
 				kv1, err := builder.New(kv.Config{}, cluster.Config{})
 				Expect(err).ToNot(HaveOccurred())
 				kv2, err := builder.New(kv.Config{}, cluster.Config{})
@@ -98,6 +98,22 @@ var _ = Describe("KV", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(errors.Is(err, kv.ErrLeaseNotTransferable)).To(BeTrue())
 			})
+		})
+		Describe("Remote Leaseholder", func() {
+			It("Should persist the operation to storage", func() {
+				kv1, err := builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				kv2, err := builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				// Give the cluster time to propagate state.
+				time.Sleep(50 * time.Millisecond)
+				Expect(kv1.SetWithLease([]byte("key"), 2, []byte("value"))).To(Succeed())
+				time.Sleep(200 * time.Millisecond)
+				v, err := kv2.Get([]byte("key"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(v).To(Equal([]byte("value")))
+			})
+
 		})
 	})
 })

@@ -40,10 +40,12 @@ func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bo
 			b.errors <- ErrLeaseNotTransferable
 			return b, false
 		}
-	} else if err == kv_.ErrNotFound && op.Variant == Set && op.Leaseholder == DefaultLeaseholder {
-		// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
-		// we assign the lease to the cluster host.
-		op.Leaseholder = la.Cluster.HostID()
+	} else if err == kv_.ErrNotFound && op.Variant == Set {
+		if op.Leaseholder == DefaultLeaseholder {
+			// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
+			// we assign the lease to the cluster host.
+			op.Leaseholder = la.Cluster.HostID()
+		}
 	} else {
 		// For any other case, we return an error.
 		b.errors <- err
