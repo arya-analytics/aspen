@@ -7,7 +7,7 @@ import (
 
 type executor struct {
 	Config
-	confluence.CoreSource[batch]
+	confluence.UnarySource[batch]
 }
 
 func newExecutor(cfg Config) *executor { return &executor{Config: cfg} }
@@ -21,9 +21,7 @@ func (e *executor) setWithLease(key []byte, leaseholder node.ID, value []byte) e
 func (e *executor) delete(key []byte) error { return e.exec(Operation{Key: key, Variant: Delete}) }
 
 func (e *executor) exec(op Operation) error {
-	b := batch{errors: make(chan error, 1), operations: Operations{op}}
-	for _, inlet := range e.Out {
-		inlet.Inlet() <- b
-	}
-	return <-b.errors
+	errors := make(chan error, 1)
+	e.Out.Inlet() <- batch{errors: errors, operations: Operations{op}}
+	return <-errors
 }

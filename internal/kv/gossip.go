@@ -118,9 +118,6 @@ func newFeedbackSender(cfg Config) segment {
 }
 
 func (f *feedbackSender) send(ctx confluence.Context, b batch) {
-	if b.sender == 0 {
-		return
-	}
 	msg := FeedbackMessage{Sender: f.Cluster.Host().ID, Digests: b.operations.digests()}
 	sender, _ := f.Cluster.Node(b.sender)
 	f.Logger.Debug("gossiping feedback",
