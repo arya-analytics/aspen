@@ -5,7 +5,6 @@ import (
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/util/errutil"
 	"go.uber.org/zap"
-	"log"
 )
 
 type persist struct {
@@ -22,7 +21,10 @@ func newPersist(cfg Config) segment {
 func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 	var accepted batch
 	c := errutil.NewCatchSimple(errutil.WithHooks(errutil.NewPipeHook(b.errors)))
-	ps.Logger.Debug("persisting batch", zap.Int("numOps", len(b.operations)))
+	ps.Logger.Debug("persisting batch",
+		zap.Stringer("host", ps.Cluster.HostID()),
+		zap.Int("numOps", len(b.operations)),
+	)
 	for _, op := range b.operations {
 		if op.Variant == Set {
 			c.Exec(func() error { return ps.Engine.Set(op.Key, op.Value) })
@@ -34,14 +36,15 @@ func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 			if err != nil {
 				return err
 			}
-			log.Fatal(op.Digest())
 			if err = kv_.Flush(ps.Engine, key, op.Digest()); err != nil {
 				return err
 			}
-			b.errors <- nil
 			accepted.operations = append(accepted.operations, op)
 			return nil
 		})
+	}
+	if b.errors != nil {
+		b.errors <- c.Error()
 	}
 	return accepted, true
 }

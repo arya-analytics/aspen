@@ -35,6 +35,7 @@ type Operation struct {
 
 func (o Operation) Digest() Digest {
 	return Digest{
+		Key:         o.Key,
 		Version:     o.Version,
 		Leaseholder: o.Leaseholder,
 	}
@@ -74,6 +75,7 @@ func (d Digest) Flush(w io.Writer) error {
 
 func (d Digest) Operation() Operation {
 	return Operation{
+		Key:         d.Key,
 		Version:     d.Version,
 		Leaseholder: d.Leaseholder,
 	}

@@ -1,6 +1,7 @@
 package kv_test
 
 import (
+	"errors"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	"github.com/arya-analytics/aspen/internal/kv"
@@ -20,7 +21,7 @@ var _ = Describe("KV", func() {
 	)
 	BeforeEach(func() {
 		sd = shutdown.New()
-		logger, _ = zap.NewDevelopment()
+		logger = zap.NewNop()
 		builder = kvmock.NewBuilder(
 			kv.Config{
 				Logger:            logger,
@@ -29,7 +30,6 @@ var _ = Describe("KV", func() {
 				Shutdown:          sd,
 			},
 			cluster.Config{
-				Logger:   logger,
 				Shutdown: sd,
 				Gossip: gossip.Config{
 					Interval: 50 * time.Millisecond,
@@ -87,7 +87,16 @@ var _ = Describe("KV", func() {
 				v, err = kv2.Get([]byte("key"))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(v).To(Equal([]byte("value2")))
-
+			})
+			It("Should return an error when attempting to transfer the lease", func() {
+				kv1, err := builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				_, err = builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(kv1.Set([]byte("key"), []byte("value"))).To(Succeed())
+				err = kv1.SetWithLease([]byte("key"), 2, []byte("value2"))
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, kv.ErrLeaseNotTransferable)).To(BeTrue())
 			})
 		})
 	})

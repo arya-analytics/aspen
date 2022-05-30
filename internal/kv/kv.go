@@ -68,6 +68,7 @@ const (
 	leaseSenderAddr       = "leaseSender"
 	leaseReceiverAddr     = "leaseReceiver"
 	leaseProxyAddr        = "leaseProxy"
+	leaseAssignerAddr     = "leaseAssigner"
 	executorAddr          = "executor"
 )
 
@@ -94,6 +95,7 @@ func Open(cfg Config) (KV, error) {
 	pipeline := confluence.NewPipeline[batch]()
 	pipeline.Segment(executorAddr, exec)
 	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
+	pipeline.Segment(leaseAssignerAddr, newLeaseAssigner(cfg))
 	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
 	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
 	pipeline.Segment(versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
@@ -108,8 +110,14 @@ func Open(cfg Config) (KV, error) {
 
 	builder := pipeline.NewRouteBuilder()
 
+	builder.Route(confluence.UnaryRouter[batch]{
+		FromAddr: executorAddr,
+		ToAddr:   leaseAssignerAddr,
+		Capacity: 1,
+	})
+
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{executorAddr, leaseReceiverAddr},
+		FromAddresses: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
 		ToAddresses:   []address.Address{leaseProxyAddr},
 		Stitch:        confluence.StitchLinear,
 		Capacity:      1,

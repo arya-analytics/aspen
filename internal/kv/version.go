@@ -46,6 +46,11 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 	if len(rejected.operations) > 0 {
 		resMap[vc.rejectedTo] = rejected
 	}
+	vc.Logger.Debug("version filter",
+		zap.Stringer("host", vc.Cluster.HostID()),
+		zap.Int("accepted", len(accepted.operations)),
+		zap.Int("rejected", len(rejected.operations)),
+	)
 	return resMap
 }
 
@@ -105,7 +110,7 @@ func (va *versionAssigner) assign(ctx confluence.Context, b batch) (batch, bool)
 		return batch{}, false
 	}
 	for i := range b.operations {
-		b.operations[i].Version = version.Counter(latestVer + int64(i))
+		b.operations[i].Version = version.Counter(latestVer + int64(i) + 1)
 	}
 	return b, true
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/transport"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go/types"
 )
@@ -16,6 +15,53 @@ import (
 var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
 
 const DefaultLeaseholder = 0
+
+type leaseAssigner struct {
+	Config
+	confluence.Transform[batch]
+}
+
+func newLeaseAssigner(cfg Config) segment {
+	la := &leaseAssigner{Config: cfg}
+	la.Transform.Transform = la.assignLease
+	return la
+}
+
+func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bool) {
+	op := b.single()
+	lh, err := la.getLease(op.Key)
+
+	// If we get a nil error, that means this key is in the KV store. If the leaseholder doesn't match
+	// the previous leaseholder, we return an error.
+	if err == nil {
+		if op.Leaseholder != DefaultLeaseholder && lh != op.Leaseholder {
+			b.errors <- ErrLeaseNotTransferable
+			return b, false
+		}
+		if op.Leaseholder == DefaultLeaseholder {
+			op.Leaseholder = lh
+		}
+	}
+
+	// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
+	// we assign the lease to the cluster host. For any other case, we return an error.
+	if err == kv_.ErrNotFound && op.Variant == Set && op.Leaseholder == DefaultLeaseholder {
+		op.Leaseholder = la.Cluster.HostID()
+	} else if err != nil {
+		b.errors <- err
+		return b, false
+	}
+
+	// For any other case, simply keep the leaseholder as stated on the operation.
+	b.operations[0] = op
+
+	return b, true
+}
+
+func (la *leaseAssigner) getLease(key []byte) (node.ID, error) {
+	digest, err := getDigestFromKV(la.Engine, key)
+	return digest.Leaseholder, err
+}
 
 type leaseProxy struct {
 	Config
@@ -31,68 +77,10 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 }
 
 func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address {
-	var (
-		op    = batch.single()
-		err   error
-		local bool
-	)
-	switch op.Variant {
-	case Set:
-		op, err = lp.processSet(op)
-	case Delete:
-		op, err = lp.processDelete(op)
-	}
-	if err != nil {
-		lp.Logger.Error("leaseProxy failed to process operation", zap.Error(err))
-		batch.errors <- err
-		close(batch.errors)
-		return ""
-	}
-	lp.Logger.Debug("lease proxy", zap.Bool("local", local))
-	if op.Leaseholder == lp.Cluster.HostID() {
+	if batch.single().Leaseholder == lp.Cluster.HostID() {
 		return lp.localTo
 	}
 	return lp.remoteTo
-}
-
-func (lp *leaseProxy) processSet(op Operation) (Operation, error) {
-	if op.Leaseholder == DefaultLeaseholder {
-		leaseholder, err := lp.getLease(op.Key)
-		if err == kv_.ErrNotFound {
-			op.Leaseholder = lp.Cluster.HostID()
-		} else if err != nil {
-			return op, err
-		} else {
-			op.Leaseholder = leaseholder
-		}
-	}
-	return op, lp.validateLease(op.Key, op.Leaseholder)
-}
-
-func (lp *leaseProxy) processDelete(op Operation) (Operation, error) {
-	var err error
-	op.Leaseholder, err = lp.getLease(op.Key)
-	return op, err
-}
-
-func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
-	lease, err := lp.getLease(key)
-	if err == kv_.ErrNotFound {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if lease != leaseholder {
-		return ErrLeaseNotTransferable
-	}
-	return nil
-}
-
-func (lp *leaseProxy) getLease(key []byte) (node.ID, error) {
-	digest, err := getDigestFromKV(lp.Engine, key)
-	log.Info(digest, err)
-	return digest.Leaseholder, err
 }
 
 type LeaseMessage struct {
@@ -119,9 +107,9 @@ func (lf *leaseSender) send(ctx confluence.Context, batch batch) {
 	op := batch.single()
 
 	lf.Logger.Debug("sending lease operation",
-		zap.Binary("key", op.Key),
+		zap.String("key", string(op.Key)),
 		zap.Stringer("host", lf.Cluster.HostID()),
-		zap.Stringer("peer (leaseholder)", op.Leaseholder),
+		zap.Stringer("leaseholder", op.Leaseholder),
 	)
 
 	addr, err := lf.Cluster.Resolve(op.Leaseholder)
@@ -157,8 +145,8 @@ func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.N
 	b.errors = make(chan error, 1)
 
 	lr.Logger.Debug("received lease operation",
-		zap.Binary("key", msg.Operation.Key),
-		zap.Stringer("peer", msg.Operation.Leaseholder),
+		zap.String("key", string(msg.Operation.Key)),
+		zap.Stringer("leaseholder", msg.Operation.Leaseholder),
 		zap.Stringer("host", lr.Cluster.HostID()),
 	)
 

@@ -48,7 +48,7 @@ func (g *operationSender) send(ctx confluence.Context, b batch) (batch, bool) {
 		return batch{}, false
 	}
 
-	g.Logger.Debug("gossip operations",
+	g.Logger.Debug("gossiping operations",
 		zap.Stringer("host", state.HostID),
 		zap.Stringer("peer", peer.ID),
 		zap.Int("numOps", len(b.operations)),
@@ -126,6 +126,7 @@ func (f *feedbackSender) send(ctx confluence.Context, b batch) {
 	f.Logger.Debug("gossiping feedback",
 		zap.Stringer("host", f.Cluster.HostID()),
 		zap.Stringer("peer", b.sender),
+		zap.Int("count", len(msg.Digests)),
 	)
 	if _, err := f.FeedbackTransport.Send(ctx.Ctx, sender.Address, msg); err != nil {
 		f.Logger.Error("failed to gossip feedback", zap.Stringer("peer", b.sender), zap.Error(err))
