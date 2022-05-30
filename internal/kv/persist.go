@@ -5,6 +5,7 @@ import (
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/util/errutil"
 	"go.uber.org/zap"
+	"log"
 )
 
 type persist struct {
@@ -33,9 +34,11 @@ func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 			if err != nil {
 				return err
 			}
+			log.Fatal(op.Digest())
 			if err = kv_.Flush(ps.Engine, key, op.Digest()); err != nil {
 				return err
 			}
+			b.errors <- nil
 			accepted.operations = append(accepted.operations, op)
 			return nil
 		})

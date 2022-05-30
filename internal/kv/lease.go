@@ -8,6 +8,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/transport"
+	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 	"go/types"
 )
@@ -30,19 +31,16 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 }
 
 func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address {
-	if len(batch.operations) != 1 {
-		panic("cannot process more than one op at a time")
-	}
 	var (
-		op    = batch.operations[0]
+		op    = batch.single()
 		err   error
 		local bool
 	)
 	switch op.Variant {
 	case Set:
-		local, err = lp.processSet(op)
+		op, err = lp.processSet(op)
 	case Delete:
-		local, err = lp.processDelete(op)
+		op, err = lp.processDelete(op)
 	}
 	if err != nil {
 		lp.Logger.Error("leaseProxy failed to process operation", zap.Error(err))
@@ -51,22 +49,30 @@ func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address
 		return ""
 	}
 	lp.Logger.Debug("lease proxy", zap.Bool("local", local))
-	if local {
+	if op.Leaseholder == lp.Cluster.HostID() {
 		return lp.localTo
 	}
 	return lp.remoteTo
 }
 
-func (lp *leaseProxy) processSet(op Operation) (bool, error) {
+func (lp *leaseProxy) processSet(op Operation) (Operation, error) {
 	if op.Leaseholder == DefaultLeaseholder {
-		op.Leaseholder = lp.Cluster.HostID()
+		leaseholder, err := lp.getLease(op.Key)
+		if err == kv_.ErrNotFound {
+			op.Leaseholder = lp.Cluster.HostID()
+		} else if err != nil {
+			return op, err
+		} else {
+			op.Leaseholder = leaseholder
+		}
 	}
-	return op.Leaseholder == lp.Cluster.HostID(), lp.validateLease(op.Key, op.Leaseholder)
+	return op, lp.validateLease(op.Key, op.Leaseholder)
 }
 
-func (lp *leaseProxy) processDelete(op Operation) (bool, error) {
-	leaseholder, err := lp.getLease(op.Key)
-	return leaseholder == lp.Cluster.HostID(), err
+func (lp *leaseProxy) processDelete(op Operation) (Operation, error) {
+	var err error
+	op.Leaseholder, err = lp.getLease(op.Key)
+	return op, err
 }
 
 func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
@@ -84,8 +90,9 @@ func (lp *leaseProxy) validateLease(key []byte, leaseholder node.ID) error {
 }
 
 func (lp *leaseProxy) getLease(key []byte) (node.ID, error) {
-	op, err := getDigestFromKV(lp.Engine, key)
-	return op.Leaseholder, err
+	digest, err := getDigestFromKV(lp.Engine, key)
+	log.Info(digest, err)
+	return digest.Leaseholder, err
 }
 
 type LeaseMessage struct {
