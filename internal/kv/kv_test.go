@@ -100,6 +100,4 @@ var _ = Describe("KV", func() {
 			})
 		})
 	})
-	//Describe("Get")
-	//Describe("Delete")
 })

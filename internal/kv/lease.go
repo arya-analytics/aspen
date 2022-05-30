@@ -30,31 +30,26 @@ func newLeaseAssigner(cfg Config) segment {
 func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bool) {
 	op := b.single()
 	lh, err := la.getLease(op.Key)
-
-	// If we get a nil error, that means this key is in the KV store. If the leaseholder doesn't match
-	// the previous leaseholder, we return an error.
 	if err == nil {
-		if op.Leaseholder != DefaultLeaseholder && lh != op.Leaseholder {
+		if op.Leaseholder == DefaultLeaseholder {
+			// If the leaseholder is the default, assign it to the stored leaseholder.
+			op.Leaseholder = lh
+		} else if lh != op.Leaseholder {
+			// If we get a nil error, that means this key is in the KV store. If the leaseholder doesn't match
+			// the previous leaseholder, we return an error.
 			b.errors <- ErrLeaseNotTransferable
 			return b, false
 		}
-		if op.Leaseholder == DefaultLeaseholder {
-			op.Leaseholder = lh
-		}
-	}
-
-	// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
-	// we assign the lease to the cluster host. For any other case, we return an error.
-	if err == kv_.ErrNotFound && op.Variant == Set && op.Leaseholder == DefaultLeaseholder {
+	} else if err == kv_.ErrNotFound && op.Variant == Set && op.Leaseholder == DefaultLeaseholder {
+		// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
+		// we assign the lease to the cluster host.
 		op.Leaseholder = la.Cluster.HostID()
-	} else if err != nil {
+	} else {
+		// For any other case, we return an error.
 		b.errors <- err
 		return b, false
 	}
-
-	// For any other case, simply keep the leaseholder as stated on the operation.
 	b.operations[0] = op
-
 	return b, true
 }
 

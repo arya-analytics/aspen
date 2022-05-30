@@ -34,7 +34,7 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 			op.state = Recovered
 			log.Info(op.Key)
 			oBatch.operations = append(oBatch.operations, op)
-			//delete(r.repetitions, strKey)
+			delete(r.repetitions, strKey)
 		}
 		r.repetitions[strKey]++
 	}
