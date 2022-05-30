@@ -4,40 +4,41 @@ import (
 	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
-	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/kv/kvmock"
-	"github.com/arya-analytics/x/rand"
 	tmock "github.com/arya-analytics/x/transport/mock"
-	"time"
 )
 
-func Provision(n int, cfg cluster.Config) ([]cluster.Cluster, error) {
-	var (
-		ctx       = context.Background()
-		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
-		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
-	)
-	var clusters []cluster.Cluster
-	for i := 0; i < n; i++ {
-		gossipTransport := gossipNet.Route("")
-		pledgeTransport := pledgeNet.Route(gossipTransport.Address)
-		var peerAddresses []address.Address
-		for _, peer := range clusters {
-			peerAddresses = append(peerAddresses, peer.Host().Address)
-		}
-		cCfg := cluster.Config{
-			Pledge:  pledge.Config{Transport: pledgeTransport},
-			Gossip:  gossip.Config{Transport: gossipTransport},
-			Storage: kvmock.New(),
-		}.Merge(cfg)
-		time.Sleep(200 * time.Millisecond)
-		clust, err := cluster.Join(ctx, gossipTransport.Address, rand.SubSlice(peerAddresses, 5), cCfg)
-		if err != nil {
-			return nil, err
-		}
-		clusters = append(clusters, clust)
+type Builder struct {
+	BaseCfg   cluster.Config
+	GossipNet *tmock.Network[gossip.Message, gossip.Message]
+	PledgeNet *tmock.Network[node.ID, node.ID]
+	APIs      map[node.ID]cluster.Cluster
+}
+
+func NewBuilder(baseCfg cluster.Config) *Builder {
+	return &Builder{
+		BaseCfg:   baseCfg,
+		GossipNet: tmock.NewNetwork[gossip.Message, gossip.Message](),
+		PledgeNet: tmock.NewNetwork[node.ID, node.ID](),
+		APIs:      make(map[node.ID]cluster.Cluster),
 	}
-	return clusters, nil
+}
+
+func (b *Builder) New(cfg cluster.Config) (cluster.Cluster, error) {
+	gossipTransport := b.GossipNet.Route("")
+	pledgeTransport := b.PledgeNet.Route(gossipTransport.Address)
+	cfg.Gossip.Transport = gossipTransport
+	cfg.Pledge.Transport = pledgeTransport
+	cfg = cfg.Merge(b.BaseCfg)
+	clust, err := cluster.Join(context.Background(), gossipTransport.Address, b.MemberAddresses(), cfg)
+	b.APIs[clust.Host().ID] = clust
+	return clust, err
+}
+
+func (b *Builder) MemberAddresses() (memberAddresses []address.Address) {
+	for _, api := range b.APIs {
+		memberAddresses = append(memberAddresses, api.Host().Address)
+	}
+	return memberAddresses
 }
