@@ -32,7 +32,7 @@ var _ = Describe("KV", func() {
 		feedbackNet = tmock.NewNetwork[kv.FeedbackMessage, types.Nil]()
 		leaseNet = tmock.NewNetwork[kv.LeaseMessage, types.Nil]()
 		sd = shutdown.New()
-		clusterSize = 25
+		clusterSize = 20
 		logger = zap.NewNop()
 		var err error
 		clusterAPIs, err = clustermock.Provision(clusterSize, cluster.Config{Logger: zap.NewNop(), Shutdown: sd})
@@ -48,9 +48,9 @@ var _ = Describe("KV", func() {
 				LeaseTransport:      leaseT,
 				Logger:              logger,
 				Shutdown:            sd,
-				RecoveryThreshold:   8,
+				RecoveryThreshold:   12,
 				Engine:              kvEngine,
-				GossipInterval:      200 * time.Millisecond,
+				GossipInterval:      100 * time.Millisecond,
 			})
 			kvAPIs = append(kvAPIs, kv)
 			Expect(err).To(BeNil())

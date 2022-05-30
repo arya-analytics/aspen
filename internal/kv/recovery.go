@@ -12,12 +12,17 @@ type recoveryTransform struct {
 	repetitions map[string]int
 }
 
+func newRecoveryTransform(cfg Config) segment {
+	r := &recoveryTransform{Config: cfg, repetitions: make(map[string]int)}
+	r.Transform.Transform = r.transform
+	return r
+}
+
 func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBatch batch, ok bool) {
-	r.Logger.Debug("recoveryTransform", zap.Int("numOps", len(batch.operations)))
 	for _, op := range batch.operations {
 		key, err := kv_.CompositeKey(op.Key, op.Version)
 		if err != nil {
-			panic(err)
+			ctx.ErrC <- err
 		}
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
@@ -29,10 +34,4 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 		r.repetitions[strKey]++
 	}
 	return oBatch, true
-}
-
-func newRecoveryTransform(cfg Config) segment {
-	r := &recoveryTransform{Config: cfg, repetitions: make(map[string]int)}
-	r.Transform.Transform = r.transform
-	return r
 }
