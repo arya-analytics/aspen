@@ -133,11 +133,6 @@ func newLeaseReceiver(cfg Config) segment {
 }
 
 func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
-
-	if ctx.Err() != nil {
-		return types.Nil{}, ctx.Err()
-	}
-
 	b := msg.toBatch()
 	b.errors = make(chan error, 1)
 

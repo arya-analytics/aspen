@@ -3,7 +3,6 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
-	log "github.com/sirupsen/logrus"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +31,6 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 				zap.String("key", strKey),
 			)
 			op.state = Recovered
-			log.Info(op.Key)
 			oBatch.operations = append(oBatch.operations, op)
 			delete(r.repetitions, strKey)
 		}

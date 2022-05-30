@@ -86,7 +86,7 @@ func newOperationReceiver(cfg Config, store store.Store[operationMap]) segment {
 func (g *operationReceiver) handle(ctx context.Context, message OperationMessage) (OperationMessage, error) {
 	b := message.toBatch()
 	hostID := g.Cluster.HostID()
-	g.Logger.Info("received gossip", zap.Stringer("peer", message.Sender), zap.Stringer("host", hostID))
+	g.Logger.Debug("received gossip", zap.Stringer("peer", message.Sender), zap.Stringer("host", hostID))
 	g.Out.Inlet() <- b
 	return OperationMessage{Operations: g.Store.ReadState().Operations(), Sender: hostID}, nil
 }

@@ -32,9 +32,7 @@ var _ = Describe("KV", func() {
 			},
 			cluster.Config{
 				Shutdown: sd,
-				Gossip: gossip.Config{
-					Interval: 50 * time.Millisecond,
-				},
+				Gossip:   gossip.Config{Interval: 50 * time.Millisecond},
 			},
 		)
 	})
@@ -149,6 +147,42 @@ var _ = Describe("KV", func() {
 				Expect(v).To(BeNil())
 			})
 
+		})
+
+		Describe("Remote Leaseholder", func() {
+
+			It("Should persist the operation to storage", func() {
+				kv1, err := builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				kv2, err := builder.New(kv.Config{}, cluster.Config{})
+				Expect(err).ToNot(HaveOccurred())
+				time.Sleep(50 * time.Millisecond)
+				Expect(kv1.SetWithLease([]byte("key"), 2, []byte("value")))
+				time.Sleep(200 * time.Millisecond)
+				v, err := kv2.Get([]byte("key"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(v).To(Equal([]byte("value")))
+			})
+
+		})
+
+	})
+
+	Describe("Operation Recovery", func() {
+		It("Should stop propagating an operation after a set threshold of redundant broadcasts", func() {
+			kv1, err := builder.New(kv.Config{
+				GossipInterval:    10 * time.Millisecond,
+				RecoveryThreshold: 2,
+			}, cluster.Config{})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = builder.New(kv.Config{
+				GossipInterval:    20 * time.Millisecond,
+				RecoveryThreshold: 2,
+			}, cluster.Config{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(kv1.Set([]byte("key"), []byte("value"))).To(Succeed())
+			time.Sleep(200 * time.Millisecond)
+			Expect(builder.OpNet.Entries).To(HaveLen(5))
 		})
 
 	})
