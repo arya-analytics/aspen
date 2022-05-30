@@ -72,10 +72,5 @@ func (cfg Config) Validate() error {
 }
 
 func DefaultConfig() Config {
-	return Config{
-		Logger:            zap.NewNop(),
-		GossipInterval:    1 * time.Second,
-		RecoveryThreshold: 5,
-		Shutdown:          shutdown.New(),
-	}
+	return Config{GossipInterval: 1 * time.Second, RecoveryThreshold: 5}
 }

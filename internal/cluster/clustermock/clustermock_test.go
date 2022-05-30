@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Clustermock", func() {
 	Describe("Builder", func() {
-		It("Should provision a set of cluster APIs correctly", func() {
+		It("Should provision a set of cluster ClusterAPIs correctly", func() {
 			cfg := cluster.Config{Gossip: gossip.Config{Interval: 50 * time.Millisecond}}
 			builder := clustermock.NewBuilder(cfg)
 			c1, err := builder.New(cfg)

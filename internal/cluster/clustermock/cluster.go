@@ -10,18 +10,18 @@ import (
 )
 
 type Builder struct {
-	BaseCfg   cluster.Config
-	GossipNet *tmock.Network[gossip.Message, gossip.Message]
-	PledgeNet *tmock.Network[node.ID, node.ID]
-	APIs      map[node.ID]cluster.Cluster
+	BaseCfg     cluster.Config
+	GossipNet   *tmock.Network[gossip.Message, gossip.Message]
+	PledgeNet   *tmock.Network[node.ID, node.ID]
+	ClusterAPIs map[node.ID]cluster.Cluster
 }
 
 func NewBuilder(baseCfg cluster.Config) *Builder {
 	return &Builder{
-		BaseCfg:   baseCfg,
-		GossipNet: tmock.NewNetwork[gossip.Message, gossip.Message](),
-		PledgeNet: tmock.NewNetwork[node.ID, node.ID](),
-		APIs:      make(map[node.ID]cluster.Cluster),
+		BaseCfg:     baseCfg,
+		GossipNet:   tmock.NewNetwork[gossip.Message, gossip.Message](),
+		PledgeNet:   tmock.NewNetwork[node.ID, node.ID](),
+		ClusterAPIs: make(map[node.ID]cluster.Cluster),
 	}
 }
 
@@ -32,12 +32,12 @@ func (b *Builder) New(cfg cluster.Config) (cluster.Cluster, error) {
 	cfg.Pledge.Transport = pledgeTransport
 	cfg = cfg.Merge(b.BaseCfg)
 	clust, err := cluster.Join(context.Background(), gossipTransport.Address, b.MemberAddresses(), cfg)
-	b.APIs[clust.Host().ID] = clust
+	b.ClusterAPIs[clust.Host().ID] = clust
 	return clust, err
 }
 
 func (b *Builder) MemberAddresses() (memberAddresses []address.Address) {
-	for _, api := range b.APIs {
+	for _, api := range b.ClusterAPIs {
 		memberAddresses = append(memberAddresses, api.Host().Address)
 	}
 	return memberAddresses
