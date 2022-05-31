@@ -34,7 +34,7 @@ type Node struct {
 
 func (n Node) Digest() Digest { return Digest{ID: n.ID, Heartbeat: n.Heartbeat} }
 
-type State byte
+type State uint32
 
 const (
 	StateHealthy State = iota

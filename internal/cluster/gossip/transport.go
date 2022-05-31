@@ -1,6 +1,11 @@
 package gossip
 
-import "github.com/arya-analytics/aspen/internal/node"
+import (
+	"github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/x/transport"
+)
+
+type Transport = transport.Unary[Message, Message]
 
 type Message struct {
 	Digests node.Digests

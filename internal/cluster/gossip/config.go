@@ -2,12 +2,9 @@ package gossip
 
 import (
 	"github.com/arya-analytics/x/shutdown"
-	"github.com/arya-analytics/x/transport"
 	"go.uber.org/zap"
 	"time"
 )
-
-type Transport = transport.Unary[Message, Message]
 
 type Config struct {
 	Interval  time.Duration

@@ -30,7 +30,7 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 				zap.Stringer("host", r.Cluster.HostID()),
 				zap.String("key", strKey),
 			)
-			op.state = Recovered
+			op.state = recovered
 			oBatch.operations = append(oBatch.operations, op)
 			delete(r.repetitions, strKey)
 		}

@@ -10,18 +10,18 @@ import (
 	"io"
 )
 
-type Variant byte
+type Variant uint32
 
 const (
 	Set Variant = iota
 	Delete
 )
 
-type State byte
+type state byte
 
 const (
-	Infected State = iota
-	Recovered
+	infected state = iota
+	recovered
 )
 
 type Operation struct {
@@ -30,7 +30,7 @@ type Operation struct {
 	Variant     Variant
 	Version     version.Counter
 	Leaseholder node.ID
-	state       State
+	state       state
 }
 
 func (o Operation) Digest() Digest {
@@ -96,7 +96,7 @@ func digestKey(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(o
 
 type Operations []Operation
 
-func (ops Operations) whereState(state State) Operations {
+func (ops Operations) whereState(state state) Operations {
 	return ops.where(func(op Operation) bool { return op.state == state })
 }
 
