@@ -122,7 +122,7 @@ func (g *Gossip) ack(ack Message) (ack2 Message) {
 	for _, dig := range ack.Digests {
 		// If we have the node, and our version is newer, return it to the
 		// peer.
-		if n, ok := snap.Nodes[dig.ID]; !ok || n.Heartbeat.OlderThan(dig.Heartbeat) {
+		if n, ok := snap.Nodes[dig.ID]; !ok || !n.Heartbeat.YoungerThan(dig.Heartbeat) {
 			ack2.Nodes[dig.ID] = n
 		}
 	}

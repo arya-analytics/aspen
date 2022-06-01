@@ -29,8 +29,8 @@ func (n Group) Addresses() (addresses []address.Address) {
 
 func (n Group) Digests() Digests {
 	digests := make(Digests, len(n))
-	for id, n := range n {
-		digests[id] = n.Digest()
+	for id, node := range n {
+		digests[id] = node.Digest()
 	}
 	return digests
 }

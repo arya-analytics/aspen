@@ -1,4 +1,4 @@
-package aspen
+package grpc
 
 import (
 	"context"
@@ -8,17 +8,21 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	aspenv1 "github.com/arya-analytics/aspen/transport/grpc/gen/proto/go/v1"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/grpc"
+	grpcx "github.com/arya-analytics/x/grpc"
+	"github.com/arya-analytics/x/shutdown"
 	"github.com/arya-analytics/x/version"
 	"go/types"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"net"
 )
 
 // |||||| PLEDGE ||||||
 
 type pledgeTransport struct {
 	aspenv1.UnimplementedClusterGossipServiceServer
-	*grpc.Pool
+	*grpcx.Pool
+	handle func(ctx context.Context, req node.ID) (node.ID, error)
 }
 
 func (p *pledgeTransport) Send(ctx context.Context, addr address.Address, req node.ID) (node.ID, error) {
@@ -28,7 +32,19 @@ func (p *pledgeTransport) Send(ctx context.Context, addr address.Address, req no
 	}
 	defer c.Release()
 	res, err := aspenv1.NewPledgeServiceClient(c).Pledge(ctx, p.translateBackward(req))
-	return p.translateForward(res), err
+	if err != nil {
+		return 0, err
+	}
+	return p.translateForward(res), nil
+}
+
+func (p *pledgeTransport) Handle(handle func(context.Context, node.ID) (node.ID, error)) {
+	p.handle = handle
+}
+
+func (p *pledgeTransport) Pledge(ctx context.Context, req *aspenv1.ClusterPledge) (*aspenv1.ClusterPledge, error) {
+	id, err := p.handle(ctx, p.translateForward(req))
+	return p.translateBackward(id), err
 }
 
 func (p *pledgeTransport) translateForward(msg *aspenv1.ClusterPledge) node.ID {
@@ -44,7 +60,8 @@ func (p *pledgeTransport) translateBackward(id node.ID) *aspenv1.ClusterPledge {
 // clusterGossip implements the grpc.AbstractTranslatedTransport and the grpc.Translator interfaces.
 type clusterGossip struct {
 	aspenv1.UnimplementedClusterGossipServiceServer
-	*grpc.Pool
+	*grpcx.Pool
+	handle func(ctx context.Context, req gossip.Message) (gossip.Message, error)
 }
 
 func (c *clusterGossip) Send(ctx context.Context, addr address.Address, req gossip.Message) (gossip.Message, error) {
@@ -53,11 +70,31 @@ func (c *clusterGossip) Send(ctx context.Context, addr address.Address, req goss
 		return gossip.Message{}, err
 	}
 	defer conn.Release()
-	res, err := aspenv1.NewClusterGossipServiceClient(conn).Gossip(ctx, c.translateBackward(req))
-	return c.translateForward(res), err
+	tReq := c.translateBackward(req)
+	res, err := aspenv1.NewClusterGossipServiceClient(conn).Gossip(ctx, tReq)
+	tRes := c.translateForward(res)
+	return tRes, err
+}
+
+func (c *clusterGossip) Handle(handle func(context.Context, gossip.Message) (gossip.Message, error)) {
+	c.handle = handle
+}
+
+func (c *clusterGossip) Gossip(ctx context.Context, req *aspenv1.ClusterGossip) (*aspenv1.ClusterGossip, error) {
+	tReq := c.translateForward(req)
+	tRes, err := c.handle(ctx, tReq)
+	res := c.translateBackward(tRes)
+	return res, err
+
 }
 
 func (c *clusterGossip) translateForward(msg *aspenv1.ClusterGossip) (tMsg gossip.Message) {
+	if len(msg.Digests) > 0 {
+		tMsg.Digests = make(map[node.ID]node.Digest)
+	}
+	if len(msg.Nodes) > 0 {
+		tMsg.Nodes = make(map[node.ID]node.Node)
+	}
 	for _, d := range msg.Digests {
 		tMsg.Digests[node.ID(d.Id)] = node.Digest{
 			ID:        node.ID(d.Id),
@@ -76,7 +113,7 @@ func (c *clusterGossip) translateForward(msg *aspenv1.ClusterGossip) (tMsg gossi
 }
 
 func (c *clusterGossip) translateBackward(msg gossip.Message) *aspenv1.ClusterGossip {
-	tMsg := &aspenv1.ClusterGossip{}
+	tMsg := &aspenv1.ClusterGossip{Digests: make(map[uint32]*aspenv1.NodeDigest), Nodes: make(map[uint32]*aspenv1.Node)}
 	for _, d := range msg.Digests {
 		tMsg.Digests[uint32(d.ID)] = &aspenv1.NodeDigest{
 			Id:        uint32(d.ID),
@@ -98,7 +135,8 @@ func (c *clusterGossip) translateBackward(msg gossip.Message) *aspenv1.ClusterGo
 
 type operations struct {
 	aspenv1.UnimplementedOperationServiceServer
-	Pool *grpc.Pool
+	Pool   *grpcx.Pool
+	handle func(ctx context.Context, req kv.OperationMessage) (kv.OperationMessage, error)
 }
 
 func (o *operations) Send(ctx context.Context, addr address.Address, req kv.OperationMessage) (kv.OperationMessage, error) {
@@ -109,6 +147,15 @@ func (o *operations) Send(ctx context.Context, addr address.Address, req kv.Oper
 	defer c.Release()
 	res, err := aspenv1.NewOperationServiceClient(c).Operation(ctx, o.translateBackward(req))
 	return o.translateForward(res), err
+}
+
+func (o *operations) Handle(handle func(context.Context, kv.OperationMessage) (kv.OperationMessage, error)) {
+	o.handle = handle
+}
+
+func (o *operations) Operation(ctx context.Context, req *aspenv1.OperationMessage) (*aspenv1.OperationMessage, error) {
+	msg, err := o.handle(ctx, o.translateForward(req))
+	return o.translateBackward(msg), err
 }
 
 func (o *operations) translateBackward(msg kv.OperationMessage) *aspenv1.OperationMessage {
@@ -150,7 +197,7 @@ func convertOperationTransport(msg *aspenv1.Operation) (tMsg kv.Operation) {
 type lease struct {
 	aspenv1.UnimplementedLeaseServiceServer
 	handle func(ctx context.Context, msg kv.LeaseMessage) (types.Nil, error)
-	Pool   *grpc.Pool
+	Pool   *grpcx.Pool
 }
 
 func (l *lease) Send(ctx context.Context, addr address.Address, msg kv.LeaseMessage) (types.Nil, error) {
@@ -166,6 +213,11 @@ func (l *lease) Handle(handle func(ctx context.Context, msg kv.LeaseMessage) (ty
 	l.handle = handle
 }
 
+func (l *lease) Forward(ctx context.Context, msg *aspenv1.LeaseMessage) (*emptypb.Empty, error) {
+	_, err := l.handle(ctx, l.translateForward(msg))
+	return &emptypb.Empty{}, err
+}
+
 func (l *lease) translateBackward(msg kv.LeaseMessage) *aspenv1.LeaseMessage {
 	return &aspenv1.LeaseMessage{Operation: convertOperationRPC(msg.Operation)}
 }
@@ -179,7 +231,7 @@ type feedback struct {
 	aspenv1.UnimplementedFeedbackServiceServer
 	aspenv1.FeedbackServiceClient
 	handle func(ctx context.Context, msg kv.FeedbackMessage) (types.Nil, error)
-	Pool   *grpc.Pool
+	Pool   *grpcx.Pool
 }
 
 func (f *feedback) Send(ctx context.Context, addr address.Address, msg kv.FeedbackMessage) (types.Nil, error) {
@@ -224,7 +276,8 @@ func (f *feedback) translateForward(msg *aspenv1.FeedbackMessage) (tMsg kv.Feedb
 	return tMsg
 }
 
-func New(pool *grpc.Pool) *transport {
+func New() *transport {
+	pool := grpcx.NewPool(grpc.WithInsecure())
 	return &transport{
 		pool:          pool,
 		pledge:        &pledgeTransport{Pool: pool},
@@ -236,19 +289,19 @@ func New(pool *grpc.Pool) *transport {
 }
 
 type transport struct {
-	pool          *grpc.Pool
-	pledge        pledge.Transport
-	clusterGossip gossip.Transport
-	operations    kv.OperationsTransport
-	lease         kv.LeaseTransport
-	feedback      kv.FeedbackTransport
+	pool          *grpcx.Pool
+	pledge        *pledgeTransport
+	clusterGossip *clusterGossip
+	operations    *operations
+	lease         *lease
+	feedback      *feedback
 }
 
 func (t *transport) Pledge() pledge.Transport {
 	return t.pledge
 }
 
-func (t *transport) ClusterGossip() gossip.Transport {
+func (t *transport) Cluster() gossip.Transport {
 	return t.clusterGossip
 }
 
@@ -262,4 +315,29 @@ func (t *transport) Lease() kv.LeaseTransport {
 
 func (t *transport) Feedback() kv.FeedbackTransport {
 	return t.feedback
+}
+
+func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error {
+	server := grpc.NewServer()
+	aspenv1.RegisterPledgeServiceServer(server, t.pledge)
+	aspenv1.RegisterLeaseServiceServer(server, t.lease)
+	aspenv1.RegisterFeedbackServiceServer(server, t.feedback)
+	aspenv1.RegisterOperationServiceServer(server, t.operations)
+	aspenv1.RegisterClusterGossipServiceServer(server, t.clusterGossip)
+	lis, err := net.Listen("tcp", addr.PortString())
+	if err != nil {
+		return err
+	}
+	sd.Go(func(sig chan shutdown.Signal) (err error) {
+		go func() {
+			err = server.Serve(lis)
+		}()
+		if err != nil {
+			return err
+		}
+		defer server.Stop()
+		<-sig
+		return nil
+	})
+	return nil
 }
