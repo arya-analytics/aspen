@@ -6,17 +6,18 @@ package cluster
 
 import (
 	"context"
-	"errors"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/observe"
 	"github.com/arya-analytics/x/shutdown"
 	xstore "github.com/arya-analytics/x/store"
+	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 )
 
@@ -38,6 +39,8 @@ type Cluster interface {
 	Node(id node.ID) (node.Node, error)
 	// Resolve resolves the address of a node with the given ID.
 	Resolve(id node.ID) (address.Address, error)
+	// Config returns the configuration parameters used by the cluster.
+	Config() Config
 	// Reader returns a copy of the current cluster state. This snapshot is safe
 	// to modify, but is not guaranteed to remain up to date.
 	xstore.Reader[State]
@@ -50,6 +53,11 @@ type Cluster interface {
 // If provisioning a new cluster, ensure that all storage for previous clusters is removed and provide no peers.
 func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	alamos.AttachReporter(cfg.Experiment, "cluster", cfg)
 
 	// Attempt to open the cluster store from kv. It's ok if we don't find it.
 	s, err := openStore(cfg)
@@ -57,7 +65,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		return nil, err
 	}
 
-	c := &cluster{Store: s, Config: cfg}
+	c := &cluster{Store: s, cfg: cfg}
 
 	// If our store is empty or invalid, we need to boostrap the cluster.
 	if !s.Valid() && len(peers) != 0 {
@@ -70,17 +78,27 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		// operationSender initial cluster state, so we can contact it for
 		// information on other nodes instead of peers.
 		cfg.Logger.Info("gossiping initial state through peer addresses.")
-		gossipInitialState(ctx, c.Store, c.Config, peers)
+		if err = gossipInitialState(ctx, c.Store, c.cfg, peers); err != nil {
+			return c, err
+		}
 	} else if !s.Valid() && len(peers) == 0 {
 		c.Store.SetHost(node.Node{ID: 1, Address: addr})
-		pledge_.Arbitrate(c.Nodes, c.Pledge)
 		cfg.Logger.Info("no peers provided, bootstrapping new cluster")
+		if err := pledge_.Arbitrate(c.Nodes, c.cfg.Pledge); err != nil {
+			return c, err
+		}
 	} else {
-		pledge_.Arbitrate(c.Nodes, c.Pledge)
 		cfg.Logger.Info("existing cluster found in storage. restarting activities.")
+		if err := pledge_.Arbitrate(c.Nodes, c.cfg.Pledge); err != nil {
+			return nil, err
+		}
 	}
 
-	gossip.New(s, c.Config.Gossip).Gossip(ctx)
+	g, err := gossip.New(s, c.cfg.Gossip)
+	if err != nil {
+		return nil, err
+	}
+	g.Gossip(ctx)
 
 	flushStore(cfg, s)
 
@@ -88,7 +106,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 }
 
 type cluster struct {
-	Config
+	cfg Config
 	store.Store
 }
 
@@ -113,6 +131,8 @@ func (c *cluster) Resolve(id node.ID) (address.Address, error) {
 	return n.Address, err
 }
 
+func (c *cluster) Config() Config { return c.cfg }
+
 func openStore(cfg Config) (store.Store, error) {
 	s := store.New()
 	if cfg.Storage == nil {
@@ -123,7 +143,7 @@ func openStore(cfg Config) (store.Store, error) {
 
 func pledge(ctx context.Context, peers []address.Address, c *cluster) (node.ID, error) {
 	candidates := func() node.Group { return c.Store.CopyState().Nodes }
-	return pledge_.Pledge(ctx, peers, candidates, c.Config.Pledge)
+	return pledge_.Pledge(ctx, peers, candidates, c.cfg.Pledge)
 }
 
 func gossipInitialState(
@@ -131,8 +151,11 @@ func gossipInitialState(
 	s store.Store,
 	cfg Config,
 	peers []address.Address,
-) {
-	g := gossip.New(s, cfg.Gossip)
+) error {
+	g, err := gossip.New(s, cfg.Gossip)
+	if err != nil {
+		return err
+	}
 	nextAddr := iter.InfiniteSlice(peers)
 	for peerAddr := nextAddr(); peerAddr != ""; peerAddr = nextAddr() {
 		if err := g.GossipOnceWith(ctx, peerAddr); err != nil {
@@ -142,6 +165,7 @@ func gossipInitialState(
 			break
 		}
 	}
+	return nil
 }
 
 func flushStore(cfg Config, s store.Store) {

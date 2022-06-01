@@ -19,7 +19,7 @@ func (msg Message) variant() messageVariant {
 	if msg.Digests == nil && msg.Nodes != nil {
 		return messageVariantAck2
 	}
-	panic("invalid message")
+	return messageVariantInvalid
 }
 
 type messageVariant byte
@@ -27,4 +27,5 @@ type messageVariant byte
 const (
 	messageVariantSync = iota
 	messageVariantAck2
+	messageVariantInvalid
 )

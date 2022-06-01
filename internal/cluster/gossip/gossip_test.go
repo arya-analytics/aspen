@@ -40,8 +40,11 @@ var _ = Describe("OperationSender", func() {
 			sTwo := store.New()
 			sTwo.SetState(store.State{Nodes: nodesTwo, HostID: 2})
 			sd = shut.New()
-			g1 = gossip.New(sOne, gossip.Config{Transport: t1, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
-			gossip.New(sTwo, gossip.Config{Transport: t2, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
+			var err error
+			g1, err = gossip.New(sOne, gossip.Config{Transport: t1, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
+			Expect(err).ToNot(HaveOccurred())
+			_, err = gossip.New(sTwo, gossip.Config{Transport: t2, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
+			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should converge after a single exchange", func() {
 			Expect(g1.GossipOnce(ctx)).To(Succeed())

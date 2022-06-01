@@ -2,12 +2,12 @@ package kv
 
 import (
 	"context"
-	"errors"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/transport"
+	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"go/types"
 )

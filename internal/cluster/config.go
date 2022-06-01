@@ -3,6 +3,7 @@ package cluster
 import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
+	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"
@@ -23,16 +24,18 @@ type Config struct {
 	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to FlushOnEvery,
 	// the cluster state will be flushed every time a change is made.
 	StorageFlushInterval time.Duration
-	// Pledge is the configuration for pledging to the cluster upon a Join call. See the pledge package for more details
-	// on how to configure this.
-	Pledge pledge_.Config
 	// Shutdown is used to shut down cluster activities gracefully.
 	Shutdown shutdown.Shutdown
-	// Logger is the logger used by the cluster.
-	Logger *zap.Logger
+	// Logger is the witness of it all.
+	Logger *zap.SugaredLogger
 	// Gossip is the configuration for propagating Cluster state through gossip. See the gossip package for more details
 	// on how to configure this.
 	Gossip gossip.Config
+	// Pledge is the configuration for pledging to the cluster upon a Join call. See the pledge package for more details
+	// on how to configure this.
+	Pledge pledge_.Config
+	// Experiment is where the pledge services saves its metrics and reports.
+	Experiment alamos.Experiment
 }
 
 func (cfg Config) Merge(def Config) Config {
@@ -42,10 +45,19 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Shutdown == nil {
 		cfg.Shutdown = def.Shutdown
 	}
+	if cfg.StorageFlushInterval == 0 {
+		cfg.StorageFlushInterval = def.StorageFlushInterval
+	}
+
+	// |||| PLEDGE ||||
+
 	if cfg.Pledge.Logger == nil {
 		cfg.Pledge.Logger = cfg.Logger
 	}
-	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
+	cfg.Pledge = cfg.Pledge.Apply(def.Pledge)
+
+	// |||| GOSSIP ||||
+
 	if cfg.Gossip.Logger == nil {
 		cfg.Gossip.Logger = cfg.Logger
 	}
@@ -53,17 +65,43 @@ func (cfg Config) Merge(def Config) Config {
 		cfg.Gossip.Shutdown = cfg.Shutdown
 	}
 	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
-	if cfg.StorageFlushInterval == 0 {
-		cfg.StorageFlushInterval = def.StorageFlushInterval
-	}
+
 	return cfg
+}
+
+func (cfg Config) Validate() error {
+	if err := cfg.Pledge.Validate(); err != nil {
+		return err
+	}
+	if err := cfg.Gossip.Validate(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// String returns a pretty printed representation of the config.
+func (cfg Config) String() string { return cfg.Report().String() }
+
+// Report implements the alamos.Reporter interface.
+func (cfg Config) Report() alamos.Report {
+	report := make(alamos.Report)
+	if cfg.Storage != nil {
+		report["storage"] = cfg.Storage.String()
+	} else {
+		report["storage"] = "no storage provided"
+	}
+	report["storageKey"] = string(cfg.StorageKey)
+	report["storageFlushInterval"] = cfg.StorageFlushInterval
+	report["pledge"] = cfg.Pledge.Report()
+	report["gossip"] = cfg.Gossip.Report()
+	return report
 }
 
 func DefaultConfig() Config {
 	return Config{
 		Pledge:               pledge_.DefaultConfig(),
 		StorageKey:           []byte("aspen.cluster"),
-		Logger:               zap.NewNop(),
+		Logger:               zap.NewNop().Sugar(),
 		Gossip:               gossip.DefaultConfig(),
 		Shutdown:             shutdown.New(),
 		StorageFlushInterval: 1 * time.Second,

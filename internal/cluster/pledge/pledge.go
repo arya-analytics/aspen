@@ -21,25 +21,21 @@ package pledge
 
 import (
 	"context"
-	"errors"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/rand"
-	"github.com/arya-analytics/x/transport"
 	xtime "github.com/arya-analytics/x/util/time"
+	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"sync"
-	"time"
 )
 
 var (
 	// ErrQuorumUnreachable is returned when a quorum jury cannot be safely assembled.
 	ErrQuorumUnreachable = errors.New("quorum unreachable")
-	// ErrNoPeers is returned when no peers are provided to the Pledge.
-	ErrNoPeers = errors.New("no peers")
 	// errProposalRejected is an internal error returned when a juror rejects a pledge proposal from a responsible node.
 	errProposalRejected = errors.New("proposal rejected")
 )
@@ -52,11 +48,14 @@ var (
 // will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
 func Pledge(ctx context.Context, peers []address.Address, candidates func() node.Group, cfg Config) (id node.ID, err error) {
 	if len(peers) == 0 {
-		return id, ErrNoPeers
+		return id, errors.New("[pledge] no peers provided")
 	}
 
 	cfg.peerAddresses, cfg.candidates = peers, candidates
-	cfg = cfg.Merge(DefaultConfig())
+	cfg = cfg.Apply(DefaultConfig())
+	if err = cfg.Validate(); err != nil {
+		return id, err
+	}
 
 	nextAddr := iter.InfiniteSlice(cfg.peerAddresses)
 
@@ -65,7 +64,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 
 	for range t.C {
 		addr := nextAddr()
-		cfg.Logger.Debug("pledging to peer", zap.String("address", string(addr)))
+		cfg.Logger.Debug("pledging to peer", "address", addr)
 		reqCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
 		id, err = cfg.Transport.Send(reqCtx, addr, 0)
 		cancel()
@@ -76,22 +75,25 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 	}
 
 	if err != nil {
-		cfg.Logger.Error("pledge failed", zap.Error(err))
+		cfg.Logger.Error("failed", err)
 		return 0, err
 	}
 
-	cfg.Logger.Debug("pledge successful", zap.Uint32("id", uint32(id)))
+	cfg.Logger.Debug("successful", "id", id)
+
 	// If the pledge node has been inducted successfully, allow it to arbitrate in future pledges.
-	Arbitrate(candidates, cfg)
-	return id, err
+	return id, Arbitrate(candidates, cfg)
 
 }
 
 // Arbitrate registers a node to arbitrate future pledges. When a node calls Arbitrate, it will be made available
 // to become a Responsible or Juror node. Any node that calls arbitrate should also be a member of candidates.
-func Arbitrate(candidates func() node.Group, cfg Config) {
+func Arbitrate(candidates func() node.Group, cfg Config) error {
 	cfg.candidates = candidates
-	cfg = cfg.Merge(DefaultConfig())
+	cfg = cfg.Apply(DefaultConfig())
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
 	j := &juror{Config: cfg}
 	cfg.Transport.Handle(func(ctx context.Context, id node.ID) (node.ID, error) {
 		if id == 0 {
@@ -100,59 +102,7 @@ func Arbitrate(candidates func() node.Group, cfg Config) {
 		}
 		return 0, j.verdict(ctx, id)
 	})
-}
-
-type Transport = transport.Unary[node.ID, node.ID]
-
-// Config is used for configuring a pledge based membership network.
-type Config struct {
-	// Transport is used for sending pledge information over the network.
-	Transport Transport
-	// RequestTimeout is the timeout for a peer to respond to a pledge or proposal request.
-	// If the request is not responded to before the timeout, a new jury will be formed and the request will be retried.
-	RequestTimeout time.Duration
-	// PledgeBaseRetry sets the initial retry interval for a Pledge to a peer.
-	PledgeBaseRetry time.Duration
-	// PledgeInterval scale sets how quickly the time in-between retries will increase during a Pledge to a peer. For example,
-	// a value of 2 would result in a retry interval of 1,2, 4, 8, 16, 32, 64, ... seconds.
-	PledgeRetryScale float64
-	// Logger is where the pledge process will log to.
-	Logger *zap.Logger
-	// MaxProposals is the maximum number of proposals a responsible will make to a quorum before giving up.
-	MaxProposals int
-	// candidates is a Group of nodes to contact for as candidates for the formation of a jury.
-	candidates func() node.Group
-	// peerAddresses is a set of addresses a pledge can contact.
-	peerAddresses []address.Address
-}
-
-func (cfg Config) Merge(def Config) Config {
-	if cfg.PledgeBaseRetry == 0 {
-		cfg.PledgeBaseRetry = def.PledgeBaseRetry
-	}
-	if cfg.PledgeRetryScale == 0 {
-		cfg.PledgeRetryScale = def.PledgeRetryScale
-	}
-	if cfg.RequestTimeout == 0 {
-		cfg.RequestTimeout = def.RequestTimeout
-	}
-	if cfg.Logger == nil {
-		cfg.Logger = def.Logger
-	}
-	if cfg.MaxProposals == 0 {
-		cfg.MaxProposals = def.MaxProposals
-	}
-	return cfg
-}
-
-func DefaultConfig() Config {
-	return Config{
-		RequestTimeout:   5 * time.Second,
-		PledgeBaseRetry:  1 * time.Second,
-		PledgeRetryScale: 1.5,
-		Logger:           zap.NewNop(),
-		MaxProposals:     10,
-	}
+	return nil
 }
 
 // |||||| RESPONSIBLE ||||||
@@ -164,7 +114,7 @@ type responsible struct {
 }
 
 func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
-	r.Logger.Debug("responsible received pledge. starting proposal process.")
+	r.Logger.Debug("[pledge] responsible received pledge. starting proposal process.")
 	var propC int
 	for propC = 0; propC < r.MaxProposals; propC++ {
 		if err = ctx.Err(); err != nil {

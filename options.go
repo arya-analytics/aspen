@@ -2,12 +2,13 @@ package aspen
 
 import (
 	"context"
-	"errors"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/transport/grpc"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/shutdown"
+	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble/vfs"
 	"go.uber.org/zap"
 )
@@ -40,6 +41,19 @@ type options struct {
 	transport Transport
 	// logger is the witness of it all.
 	logger *zap.Logger
+}
+
+func (o *options) String() string { return o.Report().String() }
+
+func (o *options) Report() alamos.Report {
+	return alamos.Report{
+		"dirname":   o.dirname,
+		"addr":      o.addr,
+		"peers":     o.peerAddresses,
+		"bootstrap": o.bootstrap,
+		"cluster":   o.cluster.Report(),
+		"kv":        o.kv.Report(),
+	}
 }
 
 func newOptions(dirname string, addr address.Address, peers []address.Address, opts ...Option) *options {

@@ -7,7 +7,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
-	"go.uber.org/zap"
+	"github.com/cockroachdb/errors"
 )
 
 type Gossip struct {
@@ -15,10 +15,14 @@ type Gossip struct {
 	store store.Store
 }
 
-func New(store store.Store, cfg Config) *Gossip {
+func New(store store.Store, cfg Config) (*Gossip, error) {
+	cfg.Merge(DefaultConfig())
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 	g := &Gossip{Config: cfg, store: store}
 	g.Transport.Handle(g.process)
-	return g
+	return g, nil
 }
 
 func (g *Gossip) Gossip(ctx context.Context) <-chan error {
@@ -37,14 +41,10 @@ func (g *Gossip) GossipOnce(ctx context.Context) error {
 	snap := g.store.CopyState()
 	peer := RandomPeer(snap)
 	if peer.Address == "" {
-		g.Logger.Warn("no healthy nodes to gossip with")
+		g.Logger.Warn("no healthy nodes ")
 		return nil
 	}
-	g.Logger.Debug("gossip",
-		zap.Uint32("initiator", uint32(snap.HostID)),
-		zap.Uint32("peer", uint32(peer.ID)),
-		zap.Int("stateSize", len(snap.Nodes)),
-	)
+	g.Logger.Debug("gossip", "initiator", snap.HostID, "peer", peer.ID, "clusterSize", snap.Nodes)
 	return g.GossipOnceWith(ctx, peer.Address)
 
 }
@@ -63,10 +63,7 @@ func (g *Gossip) incrementHostHeartbeat() {
 	host := g.store.GetHost()
 	host.Heartbeat = host.Heartbeat.Increment()
 	g.store.Set(host)
-	g.Logger.Debug("host heartbeat",
-		zap.Uint32("version", host.Heartbeat.Version),
-		zap.Uint32("generation", host.Heartbeat.Generation),
-	)
+	g.Logger.Debug("host heartbeat", "version", host.Heartbeat.Version, "generation", host.Heartbeat.Generation)
 }
 
 func (g *Gossip) process(ctx context.Context, msg Message) (Message, error) {
@@ -80,7 +77,9 @@ func (g *Gossip) process(ctx context.Context, msg Message) (Message, error) {
 		g.ack2(msg)
 		return Message{}, nil
 	}
-	panic("invalid message type")
+	err := errors.New("[gossip] - received unknown message variant")
+	g.Logger.Error(err)
+	return Message{}, err
 }
 
 func (g *Gossip) sync(sync Message) (ack Message) {
