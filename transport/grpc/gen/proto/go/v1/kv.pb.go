@@ -414,10 +414,10 @@ var file_v1_kv_proto_depIdxs = []int32{
 	3, // 2: aspen.v1.LeaseMessage.operation:type_name -> aspen.v1.Operation
 	0, // 3: aspen.v1.FeedbackService.Feedback:input_type -> aspen.v1.FeedbackMessage
 	2, // 4: aspen.v1.OperationService.Operation:input_type -> aspen.v1.OperationMessage
-	4, // 5: aspen.v1.LeaseService.Forward:input_type -> aspen.v1.LeaseMessage
+	4, // 5: aspen.v1.LeaseService.tranlsateApi:input_type -> aspen.v1.LeaseMessage
 	5, // 6: aspen.v1.FeedbackService.Feedback:output_type -> google.protobuf.Empty
 	2, // 7: aspen.v1.OperationService.Operation:output_type -> aspen.v1.OperationMessage
-	5, // 8: aspen.v1.LeaseService.Forward:output_type -> google.protobuf.Empty
+	5, // 8: aspen.v1.LeaseService.tranlsateApi:output_type -> google.protobuf.Empty
 	6, // [6:9] is the sub-list for method output_type
 	3, // [3:6] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

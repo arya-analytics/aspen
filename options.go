@@ -33,6 +33,9 @@ type options struct {
 	fs vfs.FS
 	// bootstrap is a boolean used to indicate whether to bootstrap a new cluster.
 	bootstrap bool
+	// transport is the default transport package for the messages that aspen exchanges.
+	// this setting overrides all other transport settings in sub-configs.
+	transport Transport
 }
 
 func newOptions(dirname string, addr address.Address, peers []address.Address, opts ...Option) *options {
@@ -79,6 +82,15 @@ func mergeDefaultOptions(o *options) {
 
 	o.cluster.Shutdown = o.shutdown
 	o.kv.Shutdown = o.shutdown
+
+	// |||| TRANSPORT ||||
+
+	o.cluster.Gossip.Transport = o.transport.Cluster()
+	o.cluster.Pledge.Transport = o.transport.Pledge()
+	o.kv.OperationsTransport = o.transport.Operations()
+	o.kv.LeaseTransport = o.transport.Lease()
+	o.kv.FeedbackTransport = o.transport.Feedback()
+
 }
 
 func defaultOptions() *options {

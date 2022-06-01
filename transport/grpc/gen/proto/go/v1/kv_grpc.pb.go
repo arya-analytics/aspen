@@ -200,7 +200,7 @@ func NewLeaseServiceClient(cc grpc.ClientConnInterface) LeaseServiceClient {
 
 func (c *leaseServiceClient) Forward(ctx context.Context, in *LeaseMessage, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/aspen.v1.LeaseService/Forward", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/aspen.v1.LeaseService/tranlsateApi", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +219,7 @@ type UnimplementedLeaseServiceServer struct {
 }
 
 func (UnimplementedLeaseServiceServer) Forward(context.Context, *LeaseMessage) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Forward not implemented")
+	return nil, status.Errorf(codes.Unimplemented, "method tranlsateApi not implemented")
 }
 
 // UnsafeLeaseServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -243,7 +243,7 @@ func _LeaseService_Forward_Handler(srv interface{}, ctx context.Context, dec fun
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/aspen.v1.LeaseService/Forward",
+		FullMethod: "/aspen.v1.LeaseService/tranlsateApi",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(LeaseServiceServer).Forward(ctx, req.(*LeaseMessage))
@@ -259,7 +259,7 @@ var LeaseService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*LeaseServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Forward",
+			MethodName: "tranlsateApi",
 			Handler:    _LeaseService_Forward_Handler,
 		},
 	},
