@@ -54,10 +54,11 @@ func (cfg Config) Merge(def Config) Config {
 
 func DefaultConfig() Config {
 	return Config{
-		Pledge:     pledge_.DefaultConfig(),
-		StorageKey: []byte("aspen.cluster"),
-		Logger:     zap.NewNop(),
-		Gossip:     gossip.DefaultConfig(),
-		Shutdown:   shutdown.New(),
+		Pledge:               pledge_.DefaultConfig(),
+		StorageKey:           []byte("aspen.cluster"),
+		Logger:               zap.NewNop(),
+		Gossip:               gossip.DefaultConfig(),
+		Shutdown:             shutdown.New(),
+		StorageFlushInterval: 1 * time.Second,
 	}
 }

@@ -4,9 +4,9 @@ package store
 
 import (
 	"github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/x/binary"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/store"
-	"github.com/arya-analytics/x/util/errutil"
 	"io"
 )
 
@@ -44,8 +44,38 @@ func New() Store {
 
 // State is the current state of the cluster as viewed from the host.
 type State struct {
-	Nodes  node.Group
 	HostID node.ID
+	Nodes  node.Group
+}
+
+func (s State) Flush(w io.Writer) error {
+	if err := binary.Write(w, s.HostID); err != nil {
+		return err
+	}
+	for _, n := range s.Nodes {
+		if err := n.Flush(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *State) Load(r io.Reader) error {
+	s.Nodes = make(node.Group)
+	if err := binary.Read(r, &s.HostID); err != nil {
+		return err
+	}
+	for {
+		n := &node.Node{}
+		err := n.Load(r)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type core struct{ store.Observable[State] }
@@ -59,10 +89,8 @@ func (c *core) Get(id node.ID) (node.Node, bool) {
 // GetHost implements Store.
 func (c *core) GetHost() node.Node {
 	snap := c.Observable.ReadState()
-	if n, ok := snap.Nodes[snap.HostID]; ok {
-		return n
-	}
-	panic("no host")
+	n, _ := snap.Nodes[snap.HostID]
+	return n
 }
 
 // SetHost implements Store.
@@ -93,20 +121,17 @@ func (c *core) Merge(other node.Group) {
 }
 
 // Valid implements Store.
-func (c *core) Valid() bool { return c.Observable.ReadState().HostID != node.ID(0) }
+func (c *core) Valid() bool { return c.GetHost().ID != 0 }
 
 // Load implements kv.FlushLoader.
 func (c *core) Load(r io.Reader) error {
-	var snap State
-	catch := errutil.NewCatchRead(r)
-	catch.Read(&snap)
-	c.Observable.SetState(snap)
-	return catch.Error()
+	snap := &State{Nodes: make(node.Group)}
+	if err := snap.Load(r); err != nil {
+		return err
+	}
+	c.Observable.SetState(*snap)
+	return nil
 }
 
 // Flush implements kv.FlushLoader.
-func (c *core) Flush(w io.Writer) error {
-	catch := errutil.NewCatchWrite(w)
-	catch.Write(c.Observable.CopyState())
-	return catch.Error()
-}
+func (c *core) Flush(w io.Writer) error { return c.Observable.CopyState().Flush(w) }

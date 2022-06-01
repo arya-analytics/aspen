@@ -14,6 +14,8 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/observe"
+	"github.com/arya-analytics/x/shutdown"
 	xstore "github.com/arya-analytics/x/store"
 	"go.uber.org/zap"
 )
@@ -80,6 +82,8 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 
 	gossip.New(s, c.Config.Gossip).Gossip(ctx)
 
+	startStateFlush(cfg, s)
+
 	return c, nil
 }
 
@@ -137,5 +141,28 @@ func gossipInitialState(
 		if len(s.CopyState().Nodes) > 1 {
 			break
 		}
+	}
+}
+
+func startStateFlush(cfg Config, s store.Store) {
+	errC := make(chan error, 5)
+	if cfg.Storage != nil {
+		flusher := &observe.FlushSubscriber[State]{
+			Key:         cfg.StorageKey,
+			MinInterval: cfg.StorageFlushInterval,
+			Store:       cfg.Storage,
+			ErrC:        errC,
+		}
+		s.OnChange(flusher.Flush)
+		cfg.Shutdown.Go(func(sig chan shutdown.Signal) error {
+			for {
+				select {
+				case <-sig:
+					return nil
+				case err := <-errC:
+					cfg.Logger.Error("failed to flush state", zap.Error(err))
+				}
+			}
+		})
 	}
 }
