@@ -51,7 +51,7 @@ type Cluster interface {
 func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 
-	// Attempt to open the cluster store from kv.
+	// Attempt to open the cluster store from kv. It's ok if we don't find it.
 	s, err := openStore(cfg)
 	if err != nil && err != kv.ErrNotFound {
 		return nil, err
@@ -82,7 +82,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 
 	gossip.New(s, c.Config.Gossip).Gossip(ctx)
 
-	startStateFlush(cfg, s)
+	flushStore(cfg, s)
 
 	return c, nil
 }
@@ -144,7 +144,7 @@ func gossipInitialState(
 	}
 }
 
-func startStateFlush(cfg Config, s store.Store) {
+func flushStore(cfg Config, s store.Store) {
 	errC := make(chan error, 5)
 	if cfg.Storage != nil {
 		flusher := &observe.FlushSubscriber[State]{

@@ -6,8 +6,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	kvc "github.com/arya-analytics/x/kv"
-	kvmock "github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/kv/kvmock"
 	"github.com/arya-analytics/x/shutdown"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"
@@ -21,13 +20,11 @@ var _ = Describe("Join", func() {
 		gossipNet *tmock.Network[gossip.Message, gossip.Message]
 		pledgeNet *tmock.Network[node.ID, node.ID]
 		logger    *zap.Logger
-		kv        kvc.KV
 	)
 	BeforeEach(func() {
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		logger = zap.NewNop()
-		kv = kvmock.New()
 	})
 	It("Should correctly join the cluster", func() {
 		By("Initializing the cluster correctly")
@@ -50,7 +47,7 @@ var _ = Describe("Join", func() {
 					Interval:  100 * time.Millisecond,
 					Shutdown:  sd,
 				},
-				Storage: kv,
+				Storage: kvmock.New(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -75,7 +72,7 @@ var _ = Describe("Join", func() {
 					Interval:  100 * time.Millisecond,
 					Shutdown:  sd,
 				},
-				Storage: kv,
+				Storage: kvmock.New(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())

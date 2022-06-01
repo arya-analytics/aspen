@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	FlushOnEvery = time.Duration(-1)
+)
+
 type Config struct {
 	// Storage is a key-value storage backend for the cluster. Cluster will flush changes to its state to this backend
 	// based on Config.StorageFlushInterval. Join will also attempt to load an existing cluster from this backend.
@@ -16,7 +20,7 @@ type Config struct {
 	Storage kv.KV
 	// StorageKey is the key used to store the cluster state in the backend.
 	StorageKey []byte
-	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to 0,
+	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to FlushOnEvery,
 	// the cluster state will be flushed every time a change is made.
 	StorageFlushInterval time.Duration
 	// Pledge is the configuration for pledging to the cluster upon a Join call. See the pledge package for more details
@@ -49,6 +53,9 @@ func (cfg Config) Merge(def Config) Config {
 		cfg.Gossip.Shutdown = cfg.Shutdown
 	}
 	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
+	if cfg.StorageFlushInterval == 0 {
+		cfg.StorageFlushInterval = def.StorageFlushInterval
+	}
 	return cfg
 }
 

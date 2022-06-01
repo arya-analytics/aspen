@@ -8,8 +8,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/alamos"
-	kvc "github.com/arya-analytics/x/kv"
-	kvmock "github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/kv/kvmock"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
 	tmock "github.com/arya-analytics/x/transport/mock"
@@ -46,14 +45,12 @@ var _ = Describe("Convergence", Serial, func() {
 		gossipNet *tmock.Network[gossip.Message, gossip.Message]
 		pledgeNet *tmock.Network[node.ID, node.ID]
 		logger    *zap.Logger
-		kv        kvc.KV
 		sd        shutdown.Shutdown
 	)
 	BeforeEach(func() {
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		logger = zap.NewNop()
-		kv = kvmock.New()
 		sd = shutdown.New()
 	})
 	Context("Serial Pledge", func() {
@@ -79,7 +76,7 @@ var _ = Describe("Convergence", Serial, func() {
 							Logger:  logger,
 							Pledge:  pledge.Config{Transport: pledgeT},
 							Gossip:  gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
-							Storage: kv,
+							Storage: kvmock.New(),
 						},
 					)
 					Expect(err).ToNot(HaveOccurred())
