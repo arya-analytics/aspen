@@ -1,8 +1,10 @@
 package node
 
 import (
+	"encoding/gob"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/version"
+	"io"
 	"strconv"
 )
 
@@ -31,6 +33,13 @@ type Node struct {
 
 	Heartbeat version.Heartbeat
 }
+
+func (n Node) Flush(w io.Writer) error {
+	g := gob.NewEncoder(w)
+	return g.Encode(n)
+}
+
+func (n *Node) Load(r io.Reader) error { return gob.NewDecoder(r).Decode(&n) }
 
 func (n Node) Digest() Digest { return Digest{ID: n.ID, Heartbeat: n.Heartbeat} }
 
