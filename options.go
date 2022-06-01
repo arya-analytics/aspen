@@ -5,9 +5,11 @@ import (
 	"errors"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
+	"github.com/arya-analytics/aspen/transport/grpc"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/shutdown"
 	"github.com/cockroachdb/pebble/vfs"
+	"go.uber.org/zap"
 )
 
 type Option func(*options)
@@ -36,6 +38,8 @@ type options struct {
 	// transport is the default transport package for the messages that aspen exchanges.
 	// this setting overrides all other transport settings in sub-configs.
 	transport Transport
+	// logger is the witness of it all.
+	logger *zap.Logger
 }
 
 func newOptions(dirname string, addr address.Address, peers []address.Address, opts ...Option) *options {
@@ -55,11 +59,17 @@ func validateOptions(o *options) error {
 	if !o.bootstrap && len(o.peerAddresses) == 0 {
 		return errors.New("peer addresses must be provided when not boostrapping a cluster")
 	}
-
+	return nil
 }
 
 func mergeDefaultOptions(o *options) {
 	def := defaultOptions()
+
+	// |||| CONTEXT ||||
+
+	if o.ctx == nil {
+		o.ctx = def.ctx
+	}
 
 	// |||| DIRNAME ||||
 
@@ -85,20 +95,35 @@ func mergeDefaultOptions(o *options) {
 
 	// |||| TRANSPORT ||||
 
+	if o.transport == nil {
+		o.transport = def.transport
+	}
 	o.cluster.Gossip.Transport = o.transport.Cluster()
 	o.cluster.Pledge.Transport = o.transport.Pledge()
 	o.kv.OperationsTransport = o.transport.Operations()
 	o.kv.LeaseTransport = o.transport.Lease()
 	o.kv.FeedbackTransport = o.transport.Feedback()
 
+	// |||| LOGGER ||||
+
+	if o.logger == nil {
+		o.logger = def.logger
+	}
+	o.cluster.Logger = o.logger
+	o.kv.Logger = o.logger
 }
 
 func defaultOptions() *options {
 	return &options{
-		dirname: "",
-		cluster: cluster.DefaultConfig(),
-		kv:      kv.DefaultConfig(),
+		ctx:       context.Background(),
+		dirname:   "",
+		cluster:   cluster.DefaultConfig(),
+		kv:        kv.DefaultConfig(),
+		transport: grpc.New(),
+		logger:    zap.NewNop(),
 	}
 }
 
 func Bootstrap() Option { return func(o *options) { o.bootstrap = true } }
+
+func WithLogger(logger *zap.Logger) Option { return func(o *options) { o.logger = logger } }

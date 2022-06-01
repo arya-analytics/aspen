@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package aspen.v1;
 
-import "gogoproto/gogo.proto";
-
 service ClusterGossipService {
   rpc Gossip(ClusterGossip) returns (ClusterGossip);
 }
