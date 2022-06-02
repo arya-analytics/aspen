@@ -57,7 +57,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		return nil, err
 	}
 
-	alamos.AttachReporter(cfg.Experiment, "cluster", cfg)
+	alamos.AttachReporter(cfg.Experiment, "cluster", alamos.Debug, cfg)
 
 	// Attempt to open the cluster store from kv. It's ok if we don't find it.
 	s, err := openStore(cfg)

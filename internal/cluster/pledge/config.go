@@ -34,7 +34,7 @@ type Config struct {
 	peerAddresses []address.Address
 }
 
-func (cfg Config) Apply(def Config) Config {
+func (cfg Config) Merge(def Config) Config {
 	if cfg.Transport == nil {
 		cfg.Transport = def.Transport
 	}
@@ -63,9 +63,6 @@ func (cfg Config) Apply(def Config) Config {
 }
 
 func (cfg Config) Validate() error {
-	if cfg.candidates == nil {
-		return errors.New("[pledge] - candidates required")
-	}
 	if cfg.Transport == nil {
 		return errors.New("[pledge] - transport required")
 	}

@@ -52,7 +52,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 	}
 
 	cfg.peerAddresses, cfg.candidates = peers, candidates
-	cfg = cfg.Apply(DefaultConfig())
+	cfg = cfg.Merge(DefaultConfig())
 	if err = cfg.Validate(); err != nil {
 		return id, err
 	}
@@ -90,7 +90,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 // to become a Responsible or Juror node. Any node that calls arbitrate should also be a member of candidates.
 func Arbitrate(candidates func() node.Group, cfg Config) error {
 	cfg.candidates = candidates
-	cfg = cfg.Apply(DefaultConfig())
+	cfg = cfg.Merge(DefaultConfig())
 	if err := cfg.Validate(); err != nil {
 		return err
 	}

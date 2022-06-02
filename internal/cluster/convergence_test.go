@@ -44,13 +44,13 @@ var _ = Describe("Convergence", Serial, func() {
 	var (
 		gossipNet *tmock.Network[gossip.Message, gossip.Message]
 		pledgeNet *tmock.Network[node.ID, node.ID]
-		logger    *zap.Logger
+		logger    *zap.SugaredLogger
 		sd        shutdown.Shutdown
 	)
 	BeforeEach(func() {
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
-		logger = zap.NewNop()
+		logger = zap.NewNop().Sugar()
 		sd = shutdown.New()
 	})
 	Context("Serial Pledge", func() {

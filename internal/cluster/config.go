@@ -54,7 +54,7 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Pledge.Logger == nil {
 		cfg.Pledge.Logger = cfg.Logger
 	}
-	cfg.Pledge = cfg.Pledge.Apply(def.Pledge)
+	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 
 	// |||| GOSSIP ||||
 
