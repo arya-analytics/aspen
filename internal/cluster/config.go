@@ -52,14 +52,14 @@ func (cfg Config) Merge(def Config) Config {
 	// |||| PLEDGE ||||
 
 	if cfg.Pledge.Logger == nil {
-		cfg.Pledge.Logger = cfg.Logger
+		cfg.Pledge.Logger = cfg.Logger.Named("pledge")
 	}
 	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 
 	// |||| GOSSIP ||||
 
 	if cfg.Gossip.Logger == nil {
-		cfg.Gossip.Logger = cfg.Logger
+		cfg.Gossip.Logger = cfg.Logger.Named("gossip")
 	}
 	if cfg.Gossip.Shutdown == nil {
 		cfg.Gossip.Shutdown = cfg.Shutdown
@@ -92,8 +92,6 @@ func (cfg Config) Report() alamos.Report {
 	}
 	report["storageKey"] = string(cfg.StorageKey)
 	report["storageFlushInterval"] = cfg.StorageFlushInterval
-	report["pledge"] = cfg.Pledge.Report()
-	report["gossip"] = cfg.Gossip.Report()
 	return report
 }
 

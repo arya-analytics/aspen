@@ -5,6 +5,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/rand"
 	"github.com/arya-analytics/x/shutdown"
 	"github.com/cockroachdb/errors"
@@ -21,6 +22,7 @@ func New(store store.Store, cfg Config) (*Gossip, error) {
 		return nil, err
 	}
 	g := &Gossip{Config: cfg, store: store}
+	alamos.AttachReporter(g.Experiment, "gossip", alamos.Debug, cfg)
 	g.Transport.Handle(g.process)
 	return g, nil
 }

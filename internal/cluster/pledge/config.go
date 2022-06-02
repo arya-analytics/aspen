@@ -28,6 +28,8 @@ type Config struct {
 	Logger *zap.SugaredLogger
 	// MaxProposals is the maximum number of proposals a responsible will make to a quorum before giving up.
 	MaxProposals int
+	// Experiment is where the gossip services saves its metrics and reports.
+	Experiment alamos.Experiment
 	// candidates is a Group of nodes to contact for as candidates for the formation of a jury.
 	candidates func() node.Group
 	// peerAddresses is a set of addresses a pledge can contact.

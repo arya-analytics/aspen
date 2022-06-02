@@ -40,7 +40,7 @@ type options struct {
 	// this setting overrides all other transport settings in sub-configs.
 	transport Transport
 	// logger is the witness of it all.
-	logger *zap.Logger
+	logger *zap.SugaredLogger
 	// experiment is the experiment that aspen attaches its metrics to.
 	experiment alamos.Experiment
 }
@@ -53,7 +53,6 @@ func (o *options) Report() alamos.Report {
 		"addr":      o.addr,
 		"peers":     o.peerAddresses,
 		"bootstrap": o.bootstrap,
-		"cluster":   o.cluster.Report(),
 		"kv":        o.kv.Report(),
 	}
 }
@@ -125,8 +124,8 @@ func mergeDefaultOptions(o *options) {
 	if o.logger == nil {
 		o.logger = def.logger
 	}
-	o.cluster.Logger = o.logger.Sugar()
-	o.kv.Logger = o.logger.Sugar()
+	o.cluster.Logger = o.logger.Named("cluster")
+	o.kv.Logger = o.logger.Named("kv")
 }
 
 func defaultOptions() *options {
@@ -136,7 +135,7 @@ func defaultOptions() *options {
 		cluster:   cluster.DefaultConfig(),
 		kv:        kv.DefaultConfig(),
 		transport: grpc.New(),
-		logger:    zap.NewNop(),
+		logger:    zap.NewNop().Sugar(),
 	}
 }
 

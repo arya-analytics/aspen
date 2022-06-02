@@ -22,6 +22,9 @@ type Config struct {
 	// Logger is the witness of it all.
 	// [Not Required]
 	Logger *zap.SugaredLogger
+	// Experiment is where the gossip services saves its metrics and reports.
+	// [Not Required]
+	Experiment alamos.Experiment
 }
 
 func (cfg Config) Merge(def Config) Config {

@@ -23,6 +23,7 @@ import (
 	"context"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/filter"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/rand"
@@ -56,6 +57,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 	if err = cfg.Validate(); err != nil {
 		return id, err
 	}
+	alamos.AttachReporter(cfg.Experiment, "pledge", alamos.Debug, cfg)
 
 	nextAddr := iter.InfiniteSlice(cfg.peerAddresses)
 
