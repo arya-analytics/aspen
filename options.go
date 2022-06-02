@@ -41,6 +41,8 @@ type options struct {
 	transport Transport
 	// logger is the witness of it all.
 	logger *zap.Logger
+	// experiment is the experiment that aspen attaches its metrics to.
+	experiment alamos.Experiment
 }
 
 func (o *options) String() string { return o.Report().String() }
@@ -123,8 +125,8 @@ func mergeDefaultOptions(o *options) {
 	if o.logger == nil {
 		o.logger = def.logger
 	}
-	o.cluster.Logger = o.logger
-	o.kv.Logger = o.logger
+	o.cluster.Logger = o.logger.Sugar()
+	o.kv.Logger = o.logger.Sugar()
 }
 
 func defaultOptions() *options {
@@ -141,3 +143,7 @@ func defaultOptions() *options {
 func Bootstrap() Option { return func(o *options) { o.bootstrap = true } }
 
 func WithLogger(logger *zap.Logger) Option { return func(o *options) { o.logger = logger } }
+
+func WithExperiment(experiment alamos.Experiment) Option {
+	return func(o *options) { o.experiment = experiment }
+}
