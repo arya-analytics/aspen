@@ -2,6 +2,7 @@ package gossip_test
 
 import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
+	"github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"time"
@@ -21,6 +22,14 @@ var _ = Describe("Config", func() {
 		It("Should return an error when no transport is provided", func() {
 			cfg := gossip.Config{}
 			Expect(cfg.Validate()).To(MatchError("[gossip] - transport required"))
+		})
+	})
+	Describe("Report", func() {
+		It("Should generate a valid report", func() {
+			cfg := gossip.Config{Interval: 1 * time.Second}
+			Expect(cfg.Report()["interval"]).To(Equal(1 * time.Second))
+			cfg.Transport = &mock.Unary[gossip.Message, gossip.Message]{}
+			Expect(cfg.Report()["transport"]).ToNot(BeNil())
 		})
 	})
 })

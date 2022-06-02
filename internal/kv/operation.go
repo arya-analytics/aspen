@@ -3,9 +3,9 @@ package kv
 import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/errutil"
 	"github.com/arya-analytics/x/filter"
 	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/util/errutil"
 	"github.com/arya-analytics/x/version"
 	"io"
 )

@@ -23,9 +23,7 @@ import (
 
 type State = store.State
 
-var (
-	ErrNodeNotFound = errors.New("node not found")
-)
+var ErrNodeNotFound = errors.New("[cluster] - node not found")
 
 // Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
@@ -158,7 +156,10 @@ func gossipInitialState(
 	}
 	nextAddr := iter.InfiniteSlice(peers)
 	for peerAddr := nextAddr(); peerAddr != ""; peerAddr = nextAddr() {
-		if err := g.GossipOnceWith(ctx, peerAddr); err != nil {
+		if err = g.GossipOnceWith(ctx, peerAddr); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			cfg.Logger.Error("failed to gossip with peer", zap.String("peer", string(peerAddr)), zap.Error(err))
 		}
 		if len(s.CopyState().Nodes) > 1 {

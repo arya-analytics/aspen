@@ -48,9 +48,11 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 		sd        shutdown.Shutdown
 		exp       alamos.Experiment
 	)
+
 	BeforeAll(func() {
 		exp = alamos.New("convergence_test")
 	})
+
 	BeforeEach(func() {
 		sd = shutdown.New()
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
@@ -58,9 +60,12 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 		log := zap.NewNop()
 		logger = log.Sugar()
 	})
+
 	Context("Serial Pledge", func() {
+
 		p := alamos.NewParametrize(alamos.IterVars(progressiveNewConvergence))
 		p.Template(func(i int, values newConvergenceVars) {
+
 			It(fmt.Sprintf("Should converge a cluster size of %v in %v "+
 				"at an interval of %v seconds and a peer address count of %v",
 				values.clusterSize, values.convergenceThreshold,
@@ -95,7 +100,9 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 					Expect(cluster_.Nodes()).To(HaveLen(values.clusterSize))
 				}
 			})
+
 		})
+
 		p.Construct()
 	})
 })

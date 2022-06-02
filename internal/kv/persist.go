@@ -2,8 +2,8 @@ package kv
 
 import (
 	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/errutil"
 	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/util/errutil"
 )
 
 type persist struct {

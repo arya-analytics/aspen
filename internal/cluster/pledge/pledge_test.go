@@ -34,14 +34,14 @@ func removeDuplicateValues(intSlice []node.ID) []node.ID {
 }
 
 var _ = Describe("Node", func() {
-	var (
-		logger *zap.SugaredLogger
-	)
-	BeforeEach(func() {
-		logger = zap.NewNop().Sugar()
-	})
+	var logger *zap.SugaredLogger
+
+	BeforeEach(func() { logger = zap.NewNop().Sugar() })
+
 	Describe("Pledge", func() {
+
 		Context("No Nodes Responding", func() {
+
 			It("Should submit round robin propose requests at scaled intervals", func() {
 				var (
 					addresses     []address.Address
@@ -269,13 +269,19 @@ var _ = Describe("Node", func() {
 				wg.Wait()
 				Expect(len(removeDuplicateValues(ids))).To(Equal(numPledges))
 			})
+
 		})
+
 		Context("No peer addresses provided to pledge", func() {
+
 			It("Should return an ErrNoPeers", func() {
 				id, err := pledge.Pledge(context.Background(), []address.Address{}, func() node.Group { return nil }, pledge.Config{})
 				Expect(err).To(HaveOccurred())
 				Expect(id).To(Equal(node.ID(0)))
 			})
+
 		})
+
 	})
+
 })

@@ -16,17 +16,21 @@ import (
 )
 
 var _ = Describe("Join", func() {
+
 	var (
 		gossipNet *tmock.Network[gossip.Message, gossip.Message]
 		pledgeNet *tmock.Network[node.ID, node.ID]
 		logger    *zap.SugaredLogger
 	)
+
 	BeforeEach(func() {
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		logger = zap.NewNop().Sugar()
 	})
+
 	It("Should correctly join the cluster", func() {
+
 		By("Initializing the cluster correctly")
 		gossipT1 := gossipNet.Route("")
 		pledgeT1 := pledgeNet.Route(gossipT1.Address)
@@ -84,4 +88,5 @@ var _ = Describe("Join", func() {
 		Expect(clusterOne.Nodes()).To(HaveLen(2))
 		Expect(clusterTwo.Nodes()).To(HaveLen(2))
 	})
+
 })

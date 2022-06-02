@@ -10,9 +10,7 @@ import (
 	"time"
 )
 
-const (
-	FlushOnEvery = time.Duration(-1)
-)
+const FlushOnEvery = time.Duration(-1)
 
 type Config struct {
 	// Storage is a key-value storage backend for the cluster. Cluster will flush changes to its state to this backend
@@ -92,7 +90,7 @@ func (cfg Config) Report() alamos.Report {
 	if cfg.Storage != nil {
 		report["storage"] = cfg.Storage.String()
 	} else {
-		report["storage"] = "no storage provided"
+		report["storage"] = "not provided"
 	}
 	report["storageKey"] = string(cfg.StorageKey)
 	report["storageFlushInterval"] = cfg.StorageFlushInterval

@@ -15,14 +15,14 @@ import (
 
 var _ = Describe("KV", func() {
 	var (
-		logger  *zap.Logger
+		logger  *zap.SugaredLogger
 		builder *kvmock.Builder
 		sd      shutdown.Shutdown
 	)
 
 	BeforeEach(func() {
 		sd = shutdown.New()
-		logger = zap.NewNop()
+		logger = zap.NewNop().Sugar()
 		builder = kvmock.NewBuilder(
 			kv.Config{
 				Logger:            logger,

@@ -1,6 +1,7 @@
 package gossip_test
 
 import (
+	"context"
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
 	shut "github.com/arya-analytics/x/shutdown"
@@ -61,6 +62,10 @@ var _ = Describe("OperationSender", func() {
 			Expect(sOne.CopyState().Nodes[1].Heartbeat.Version).To(Equal(uint32(2)))
 			Expect(sOne.CopyState().Nodes[3].State).To(Equal(node.StateDead))
 			Expect(sOne.CopyState().Nodes[2].Heartbeat.Version).To(Equal(uint32(0)))
+		})
+		It("Should return an error when an invalid message is received", func() {
+			_, err := t1.Send(context.Background(), t2.Address, gossip.Message{})
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

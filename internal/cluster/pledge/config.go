@@ -80,7 +80,7 @@ func (cfg Config) Report() alamos.Report {
 	if cfg.Transport != nil {
 		report["transport"] = cfg.Transport.String()
 	} else {
-		report["transport"] = "no transport provided"
+		report["transport"] = "not provided"
 	}
 	report["requestTimeout"] = cfg.RequestTimeout
 	report["pledgeBaseRetry"] = cfg.PledgeBaseRetry

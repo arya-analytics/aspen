@@ -57,7 +57,11 @@ func (cfg Config) String() string { return cfg.Report().String() }
 func (cfg Config) Report() alamos.Report {
 	report := make(alamos.Report)
 	report["interval"] = cfg.Interval
-	report["transport"] = cfg.Transport.String()
+	if cfg.Transport != nil {
+		report["transport"] = cfg.Transport.String()
+	} else {
+		report["transport"] = "not provided"
+	}
 	return report
 }
 
