@@ -169,7 +169,7 @@ func Open(cfg Config) (KV, error) {
 			case <-sig:
 				return nil
 			case err = <-ctx.ErrC:
-				cfg.Logger.Error(err.Error())
+				cfg.Logger.Errorw("kv pipeline error", "err", err)
 			}
 		}
 	})

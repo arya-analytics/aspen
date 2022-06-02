@@ -45,7 +45,7 @@ func (cfg Config) Merge(def Config) Config {
 
 func (cfg Config) Validate() error {
 	if cfg.Transport == nil {
-		return errors.New("[gossip] - transport required")
+		return errors.AssertionFailedf("[gossip] - transport required")
 	}
 	return nil
 }

@@ -79,7 +79,7 @@ func (g *Gossip) process(ctx context.Context, msg Message) (Message, error) {
 		g.ack2(msg)
 		return Message{}, nil
 	}
-	err := errors.New("[gossip] - received unknown message variant")
+	err := errors.AssertionFailedf("[gossip] - received unknown message variant", "msg", msg)
 	g.Logger.Error(err)
 	return Message{}, err
 }

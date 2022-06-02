@@ -8,7 +8,6 @@ import (
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/transport"
 	"github.com/cockroachdb/errors"
-	"go.uber.org/zap"
 	"go/types"
 )
 
@@ -103,27 +102,25 @@ func (lf *leaseSender) send(ctx confluence.Context, batch batch) {
 	defer close(batch.errors)
 	op := batch.single()
 
-	lf.Logger.Debug("sending lease operation",
-		zap.String("key", string(op.Key)),
-		zap.Stringer("host", lf.Cluster.HostID()),
-		zap.Stringer("leaseholder", op.Leaseholder),
+	lf.Logger.Debugw("sending lease operation",
+		"key", op.Key, "host", lf.Cluster.HostID(),
+		"leaseholder", op.Leaseholder,
 	)
 
 	addr, err := lf.Cluster.Resolve(op.Leaseholder)
 	if err != nil {
-		lf.Logger.Error("failed to resolve leaseholder", zap.Stringer("peer", op.Leaseholder), zap.Error(err))
 		batch.errors <- err
 		return
 	}
 	if _, err = lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
-		lf.Logger.Error("failed to send lease operation", zap.Stringer("peer", op.Leaseholder), zap.Error(err))
-		batch.errors <- err
+		batch.errors <- errors.Wrap(err, "failed to send lease operation")
 	}
 }
 
 type leaseReceiver struct {
 	Config
 	confluence.UnarySource[batch]
+	ctx confluence.Context
 }
 
 func newLeaseReceiver(cfg Config) segment {
@@ -132,20 +129,22 @@ func newLeaseReceiver(cfg Config) segment {
 	return lr
 }
 
+func (lr *leaseReceiver) Flow(ctx confluence.Context) { lr.ctx = ctx }
+
 func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
 	b := msg.toBatch()
 	b.errors = make(chan error, 1)
 
-	lr.Logger.Debug("received lease operation",
-		zap.String("key", string(msg.Operation.Key)),
-		zap.Stringer("leaseholder", msg.Operation.Leaseholder),
-		zap.Stringer("host", lr.Cluster.HostID()),
+	lr.Logger.Debugw("received lease operation",
+		"key", msg.Operation.Key,
+		"leaseholder", msg.Operation.Leaseholder,
+		"host", lr.Cluster.HostID(),
 	)
 
 	lr.Out.Inlet() <- b
 	err := <-b.errors
 	if err != nil {
-		lr.Logger.Error("lease failed to process operation", zap.Error(err))
+		lr.ctx.ErrC <- errors.Wrap(err, "lease failed to process operation")
 	}
 
 	return types.Nil{}, err

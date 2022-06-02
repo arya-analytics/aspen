@@ -19,8 +19,6 @@ func Join(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	o.logger.Debug(o.String())
-
 	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
 		return nil, err
 	}

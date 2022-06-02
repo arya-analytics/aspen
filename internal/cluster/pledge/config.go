@@ -66,7 +66,7 @@ func (cfg Config) Merge(def Config) Config {
 
 func (cfg Config) Validate() error {
 	if cfg.Transport == nil {
-		return errors.New("[pledge] - transport required")
+		return errors.AssertionFailedf("[pledge] - transport required")
 	}
 	return nil
 }

@@ -3,7 +3,6 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
-	"go.uber.org/zap"
 )
 
 type recoveryTransform struct {
@@ -26,10 +25,7 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 		}
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
-			r.Logger.Debug("recovering op",
-				zap.Stringer("host", r.Cluster.HostID()),
-				zap.String("key", strKey),
-			)
+			r.Logger.Debugw("recovering op", "host", r.Cluster.HostID(), "key", strKey)
 			op.state = recovered
 			oBatch.operations = append(oBatch.operations, op)
 			delete(r.repetitions, strKey)

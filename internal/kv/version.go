@@ -5,7 +5,6 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/version"
-	"go.uber.org/zap"
 )
 
 // |||||| FILTER ||||||
@@ -46,10 +45,10 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 	if len(rejected.operations) > 0 {
 		resMap[vc.rejectedTo] = rejected
 	}
-	vc.Logger.Debug("version filter",
-		zap.Stringer("host", vc.Cluster.HostID()),
-		zap.Int("accepted", len(accepted.operations)),
-		zap.Int("rejected", len(rejected.operations)),
+	vc.Logger.Debugw("version filter",
+		"host", vc.Cluster.HostID(),
+		"accepted", len(accepted.operations),
+		"rejected", len(rejected.operations),
 	)
 	return resMap
 }
@@ -104,7 +103,7 @@ func newVersionAssigner(cfg Config) (segment, error) {
 func (va *versionAssigner) assign(ctx confluence.Context, b batch) (batch, bool) {
 	latestVer := va.counter.Value()
 	if _, err := va.counter.Increment(int64(len(b.operations))); err != nil {
-		va.Logger.Error("failed to assign version", zap.Error(err))
+		va.Logger.Errorw("failed to assign version", "err", err)
 		b.errors <- err
 		ctx.ErrC <- err
 		return batch{}, false

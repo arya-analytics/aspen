@@ -7,6 +7,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/store"
 	"github.com/arya-analytics/x/transport"
+	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"go/types"
 )
@@ -41,24 +42,23 @@ func (g *operationSender) send(ctx confluence.Context, b batch) (batch, bool) {
 		return batch{}, false
 	}
 
-	state := g.Cluster.ReadState()
-	peer := gossip.RandomPeer(state)
+	s := g.Cluster.ReadState()
+	peer := gossip.RandomPeer(s)
 	if peer.Address == "" {
-		g.Logger.Warn("no healthy nodes to gossip with")
+		g.Logger.Warnw("no healthy nodes to gossip with", "host", s.HostID)
 		return batch{}, false
 	}
 
-	g.Logger.Debug("gossiping operations",
-		zap.Stringer("host", state.HostID),
-		zap.Stringer("peer", peer.ID),
-		zap.Int("numOps", len(b.operations)),
+	g.Logger.Debugw("gossiping operations",
+		"host", s.HostID,
+		"peer", peer.ID,
+		"count", len(b.operations),
 	)
 
-	sync := OperationMessage{Operations: b.operations, Sender: state.HostID}
+	sync := OperationMessage{Operations: b.operations, Sender: s.HostID}
 	ack, err := g.OperationsTransport.Send(ctx.Ctx, peer.Address, sync)
 	if err != nil {
-		g.Logger.Error("failed to gossip operations", zap.Stringer("peer", peer.ID), zap.Error(err))
-		ctx.ErrC <- err
+		ctx.ErrC <- errors.Wrap(err, "[kv] - failed to gossip operations")
 	}
 
 	// If we have no operations to persist, avoid the pipeline overhead.
@@ -120,14 +120,13 @@ func newFeedbackSender(cfg Config) segment {
 func (f *feedbackSender) send(ctx confluence.Context, b batch) {
 	msg := FeedbackMessage{Sender: f.Cluster.Host().ID, Digests: b.operations.digests()}
 	sender, _ := f.Cluster.Node(b.sender)
-	f.Logger.Debug("gossiping feedback",
-		zap.Stringer("host", f.Cluster.HostID()),
-		zap.Stringer("peer", b.sender),
-		zap.Int("count", len(msg.Digests)),
+	f.Logger.Debugw("gossiping feedback",
+		"host", f.Cluster.HostID(),
+		"peer", b.sender,
+		"count", len(msg.Digests),
 	)
 	if _, err := f.FeedbackTransport.Send(ctx.Ctx, sender.Address, msg); err != nil {
-		f.Logger.Error("failed to gossip feedback", zap.Stringer("peer", b.sender), zap.Error(err))
-		ctx.ErrC <- err
+		ctx.ErrC <- errors.Wrap(err, "[kv] - failed to gossip feedback")
 	}
 }
 
@@ -145,10 +144,7 @@ func newFeedbackReceiver(cfg Config) segment {
 }
 
 func (f *feedbackReceiver) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
-	f.Logger.Debug("received feedback",
-		zap.Stringer("peer", message.Sender),
-		zap.Stringer("host", f.Cluster.HostID()),
-	)
+	f.Logger.Debugw("received feedback", "peer", message.Sender, "host", f.Cluster.HostID())
 	f.Out.Inlet() <- message.toBatch()
 	return types.Nil{}, nil
 }

@@ -66,18 +66,18 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 
 	for range t.C {
 		addr := nextAddr()
-		cfg.Logger.Debug("pledging to peer", "address", addr)
+		cfg.Logger.Debugw("pledging to peer", "address", addr)
 		reqCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
 		id, err = cfg.Transport.Send(reqCtx, addr, 0)
 		cancel()
 		if !errors.Is(err, context.DeadlineExceeded) {
 			break
 		}
-		cfg.Logger.Error("failed to contact peer. retrying with next")
+		cfg.Logger.Errorw("failed to contact peer, retrying", "err", err)
 	}
 
 	if err != nil {
-		cfg.Logger.Error("failed", err)
+		cfg.Logger.Errorw("failed", "err", err)
 		return 0, err
 	}
 
@@ -117,7 +117,7 @@ type responsible struct {
 }
 
 func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
-	r.Logger.Debug("[pledge] responsible received pledge. starting proposal process.")
+	r.Logger.Debugw("responsible received pledge. starting proposal process.")
 	var propC int
 	for propC = 0; propC < r.MaxProposals; propC++ {
 		if err = ctx.Err(); err != nil {
@@ -135,7 +135,6 @@ func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
 		// approved the request last time. This will result in marginally higher IDs being
 		// assigned, but it's better than adding a lot of extra responsible logic.
 		id = r.idToPropose()
-		logID := zap.Uint32("id", uint32(id))
 
 		quorum, qErr := r.buildQuorum()
 		if qErr != nil {
@@ -143,21 +142,21 @@ func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
 			break
 		}
 
-		r.Logger.Debug("responsible proposing id", logID, "quorumCount", quorum)
+		r.Logger.Debugw("responsible proposing", "id", id, "quorumCount", len(quorum))
 
 		// If any node returns an error, it means we need to retry the responsible with a new ID.
 		if err = r.consultQuorum(ctx, id, quorum); err != nil {
-			r.Logger.Error("quorum rejected proposal. retrying.", zap.Error(err))
+			r.Logger.Errorw("quorum rejected proposal. retrying.", "err", zap.Error(err))
 			continue
 		}
 
-		r.Logger.Debug("quorum accepted pledge", logID)
+		r.Logger.Debugw("quorum accepted pledge", "id", id)
 
 		// If no candidates return an error, it means we reached a quorum approval,
 		// and we can safely return the new ID to the caller.
 		return id, nil
 	}
-	r.Logger.Error("responsible failed to build healthy quorum", zap.Int("proposals", propC), zap.Error(err))
+	r.Logger.Errorw("responsible failed to build healthy quorum", "numProposals", propC, "err", err)
 	return id, err
 }
 
@@ -210,8 +209,7 @@ type juror struct {
 }
 
 func (j *juror) verdict(ctx context.Context, id node.ID) (err error) {
-	logID := zap.Uint32("id", uint32(id))
-	j.Logger.Debug("juror received proposal. making verdict.", logID)
+	j.Logger.Debugw("juror received proposal. making verdict", "id", id)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -219,15 +217,15 @@ func (j *juror) verdict(ctx context.Context, id node.ID) (err error) {
 	defer j.mu.Unlock()
 	for _, appID := range j.approvals {
 		if appID == id {
-			j.Logger.Error("juror rejected proposal. already approved for a different pledge.", logID)
+			j.Logger.Errorw("juror rejected proposal. already approved for a different pledge", "id", id)
 			return errProposalRejected
 		}
 	}
 	if id > filter.MaxMapKey(j.candidates()) {
 		j.approvals = append(j.approvals, id)
-		j.Logger.Debug("juror approved proposal.", logID)
+		j.Logger.Debugw("juror approved proposal", "id", id)
 		return nil
 	}
-	j.Logger.Error("juror rejected proposal. id out of range", logID)
+	j.Logger.Errorw("juror rejected proposal. id out of range", "id", id)
 	return errProposalRejected
 }

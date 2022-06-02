@@ -75,19 +75,19 @@ func (cfg Config) Merge(def Config) Config {
 
 func (cfg Config) Validate() error {
 	if cfg.Cluster == nil {
-		return errors.New("[kv] - a valid cluster must be provided")
+		return errors.AssertionFailedf("[kv] - a valid cluster must be provided")
 	}
 	if cfg.OperationsTransport == nil {
-		return errors.New("[kv] - operations transport is required")
+		return errors.AssertionFailedf("[kv] - operations transport is required")
 	}
 	if cfg.FeedbackTransport == nil {
-		return errors.New("[kv]  - feedback transport is required")
+		return errors.AssertionFailedf("[kv]  - feedback transport is required")
 	}
 	if cfg.LeaseTransport == nil {
-		return errors.New("[kv] lease transport is required")
+		return errors.AssertionFailedf("[kv] lease transport is required")
 	}
 	if cfg.Engine == nil {
-		return errors.New("[kv] - engine is required")
+		return errors.AssertionFailedf("[kv] - engine is required")
 	}
 	return nil
 }
