@@ -96,6 +96,7 @@ func Arbitrate(candidates func() node.Group, cfg Config) error {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
+	alamos.AttachReporter(cfg.Experiment, "pledge", alamos.Debug, cfg)
 	j := &juror{Config: cfg}
 	cfg.Transport.Handle(func(ctx context.Context, id node.ID) (node.ID, error) {
 		if id == 0 {
@@ -142,7 +143,7 @@ func (r *responsible) propose(ctx context.Context) (id node.ID, err error) {
 			break
 		}
 
-		r.Logger.Debug("responsible proposing id", logID, zap.Int("quorumCount", len(quorum)))
+		r.Logger.Debug("responsible proposing id", logID, "quorumCount", quorum)
 
 		// If any node returns an error, it means we need to retry the responsible with a new ID.
 		if err = r.consultQuorum(ctx, id, quorum); err != nil {

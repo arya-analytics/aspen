@@ -57,7 +57,6 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Pledge.Experiment == nil {
 		cfg.Pledge.Experiment = cfg.Experiment
 	}
-	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 
 	// |||| GOSSIP ||||
 
@@ -70,7 +69,6 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Gossip.Experiment == nil {
 		cfg.Gossip.Experiment = cfg.Experiment
 	}
-	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
 
 	return cfg
 }

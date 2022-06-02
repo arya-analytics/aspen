@@ -19,7 +19,6 @@ func Join(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	o.logger.Debug("configuration")
 	o.logger.Debug(o.String())
 
 	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
@@ -48,6 +47,7 @@ func openKV(opts *options) error {
 	if opts.kv.Engine == nil {
 		pebbleDB, err := pebble.Open(opts.dirname, &pebble.Options{})
 		opts.kv.Engine = pebblekv.Wrap(pebbleDB)
+		opts.cluster.Storage = opts.kv.Engine
 		return err
 	}
 	return nil

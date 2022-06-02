@@ -31,7 +31,7 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Shutdown == nil {
 		cfg.Shutdown = def.Shutdown
 	}
-	if cfg.Interval == 0 {
+	if cfg.Interval <= 0 {
 		cfg.Interval = def.Interval
 	}
 	if cfg.Logger == nil {

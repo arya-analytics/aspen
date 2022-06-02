@@ -101,8 +101,6 @@ func (cfg Config) Report() alamos.Report {
 	report["operationsTransport"] = cfg.OperationsTransport.String()
 	report["feedbackTransport"] = cfg.FeedbackTransport.String()
 	report["leaseTransport"] = cfg.LeaseTransport.String()
-	report["engine"] = cfg.Engine.String()
-	report["cluster"] = cfg.Cluster.Config().Report()
 	return report
 }
 

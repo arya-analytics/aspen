@@ -17,7 +17,7 @@ type Gossip struct {
 }
 
 func New(store store.Store, cfg Config) (*Gossip, error) {
-	cfg.Merge(DefaultConfig())
+	cfg = cfg.Merge(DefaultConfig())
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

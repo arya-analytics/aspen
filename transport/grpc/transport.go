@@ -17,11 +17,19 @@ import (
 	"net"
 )
 
+// |||||| CORE ||||||
+
+type core struct {
+	*grpcx.Pool
+}
+
+func (c core) String() string { return "grpc" }
+
 // |||||| PLEDGE ||||||
 
 type pledgeTransport struct {
 	aspenv1.UnimplementedClusterGossipServiceServer
-	*grpcx.Pool
+	core
 	handle func(ctx context.Context, req node.ID) (node.ID, error)
 }
 
@@ -55,12 +63,14 @@ func (p *pledgeTransport) translateBackward(id node.ID) *aspenv1.ClusterPledge {
 	return &aspenv1.ClusterPledge{NodeId: uint32(id)}
 }
 
+func (p *pledgeTransport) String() string { return "grpc" }
+
 // |||||| CLUSTER ||||||
 
 // clusterGossip implements the grpc.AbstractTranslatedTransport and the grpc.Translator interfaces.
 type clusterGossip struct {
 	aspenv1.UnimplementedClusterGossipServiceServer
-	*grpcx.Pool
+	core
 	handle func(ctx context.Context, req gossip.Message) (gossip.Message, error)
 }
 
@@ -131,11 +141,13 @@ func (c *clusterGossip) translateBackward(msg gossip.Message) *aspenv1.ClusterGo
 	return tMsg
 }
 
+func (c *clusterGossip) String() string { return "grpc" }
+
 // |||||| OPERATIONS ||||||
 
 type operations struct {
 	aspenv1.UnimplementedOperationServiceServer
-	Pool   *grpcx.Pool
+	core
 	handle func(ctx context.Context, req kv.OperationMessage) (kv.OperationMessage, error)
 }
 
@@ -197,7 +209,7 @@ func convertOperationTransport(msg *aspenv1.Operation) (tMsg kv.Operation) {
 type lease struct {
 	aspenv1.UnimplementedLeaseServiceServer
 	handle func(ctx context.Context, msg kv.LeaseMessage) (types.Nil, error)
-	Pool   *grpcx.Pool
+	core
 }
 
 func (l *lease) Send(ctx context.Context, addr address.Address, msg kv.LeaseMessage) (types.Nil, error) {
@@ -231,7 +243,7 @@ type feedback struct {
 	aspenv1.UnimplementedFeedbackServiceServer
 	aspenv1.FeedbackServiceClient
 	handle func(ctx context.Context, msg kv.FeedbackMessage) (types.Nil, error)
-	Pool   *grpcx.Pool
+	core
 }
 
 func (f *feedback) Send(ctx context.Context, addr address.Address, msg kv.FeedbackMessage) (types.Nil, error) {
@@ -280,11 +292,11 @@ func New() *transport {
 	pool := grpcx.NewPool(grpc.WithInsecure())
 	return &transport{
 		pool:          pool,
-		pledge:        &pledgeTransport{Pool: pool},
-		lease:         &lease{Pool: pool},
-		feedback:      &feedback{Pool: pool},
-		operations:    &operations{Pool: pool},
-		clusterGossip: &clusterGossip{Pool: pool},
+		pledge:        &pledgeTransport{core: core{Pool: pool}},
+		lease:         &lease{core: core{Pool: pool}},
+		feedback:      &feedback{core: core{Pool: pool}},
+		operations:    &operations{core: core{Pool: pool}},
+		clusterGossip: &clusterGossip{core: core{Pool: pool}},
 	}
 }
 

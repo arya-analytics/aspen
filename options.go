@@ -53,7 +53,6 @@ func (o *options) Report() alamos.Report {
 		"addr":      o.addr,
 		"peers":     o.peerAddresses,
 		"bootstrap": o.bootstrap,
-		"kv":        o.kv.Report(),
 	}
 }
 
@@ -67,6 +66,7 @@ func newOptions(dirname string, addr address.Address, peers []address.Address, o
 		opt(o)
 	}
 	mergeDefaultOptions(o)
+	alamos.AttachReporter(o.experiment, "aspen", alamos.Debug, o)
 	return o
 }
 
@@ -98,10 +98,7 @@ func mergeDefaultOptions(o *options) {
 
 	// |||| CLUSTER ||||
 
-	o.cluster = o.cluster.Merge(def.cluster)
-	if o.cluster.Storage == nil {
-		o.cluster.Storage = o.kv.Engine
-	}
+	o.cluster.Experiment = o.experiment
 
 	// |||| SHUTDOWN ||||
 
@@ -126,6 +123,7 @@ func mergeDefaultOptions(o *options) {
 	}
 	o.cluster.Logger = o.logger.Named("cluster")
 	o.kv.Logger = o.logger.Named("kv")
+
 }
 
 func defaultOptions() *options {

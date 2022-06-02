@@ -31,10 +31,11 @@ var itervars = []kvSetVars{
 var _ = Describe("KvPerf", Serial, func() {
 	var (
 		builder *mock.Builder
-		logger  *zap.Logger
+		logger  *zap.SugaredLogger
 	)
 	Describe("Set", func() {
-		logger, _ = zap.NewDevelopment()
+		log, _ := zap.NewDevelopment()
+		logger = log.Sugar()
 		builder = &mock.Builder{
 			PortRangeStart: 22546,
 			DataDir:        "./testdata",
@@ -55,7 +56,6 @@ var _ = Describe("KvPerf", Serial, func() {
 			for i := 0; i < vars.numOps; i++ {
 				Expect(leaseDB.Set([]byte(fmt.Sprintf("key-%d", i)), []byte(fmt.Sprintf("value-%d", i)))).To(Succeed())
 			}
-			
 		})
 	})
 })
