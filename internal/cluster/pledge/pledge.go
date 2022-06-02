@@ -67,19 +67,19 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 	t := xtime.NewScaledTicker(cfg.PledgeBaseRetry, cfg.PledgeRetryScale)
 	defer t.Stop()
 
-	for range t.C {
+	for dur := range t.C {
 		addr := nextAddr()
 		cfg.Logger.Debugw("pledging to peer", "address", addr)
 		reqCtx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
 		id, err = cfg.Transport.Send(reqCtx, addr, 0)
 		cancel()
-		if !errors.Is(err, context.DeadlineExceeded) {
+		if err == nil {
 			break
 		}
 		if ctx.Err() != nil {
 			return id, ctx.Err()
 		}
-		cfg.Logger.Errorw("failed to contact peer, retrying", "err", err)
+		cfg.Logger.Warnf("failed to contact peer, retrying in %s", dur)
 	}
 
 	if err != nil {

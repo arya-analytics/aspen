@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-var _ = Describe("Join", func() {
+var _ = Describe("Open", func() {
 	var (
 		db1    aspen.DB
 		db2    aspen.DB
@@ -22,7 +22,7 @@ var _ = Describe("Join", func() {
 		logger = log.Sugar()
 		exp = alamos.New("aspen_join_test")
 		var err error
-		db1, err = aspen.Join(
+		db1, err = aspen.Open(
 			"./testdata/db1",
 			"localhost:22546",
 			[]address.Address{},
@@ -31,7 +31,7 @@ var _ = Describe("Join", func() {
 			aspen.WithExperiment(alamos.Sub(exp, "db1")),
 		)
 		Expect(err).ToNot(HaveOccurred())
-		db2, err = aspen.Join(
+		db2, err = aspen.Open(
 			"./testdata/db2",
 			"localhost:22547",
 			[]address.Address{"localhost:22546"},

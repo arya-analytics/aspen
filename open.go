@@ -8,7 +8,7 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
-func Join(dirname string, addr address.Address, peers []address.Address, opts ...Option) (DB, error) {
+func Open(dirname string, addr address.Address, peers []address.Address, opts ...Option) (DB, error) {
 	o := newOptions(dirname, addr, peers, opts...)
 
 	if err := openKV(o); err != nil {

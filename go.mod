@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/arya-analytics/x v0.0.0-20220516233935-c9dbaa7263d1
+	github.com/cockroachdb/errors v1.8.1
 	github.com/cockroachdb/pebble v0.0.0-20220513193540-b8c9a560bed5
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.19.0
@@ -19,7 +20,6 @@ replace github.com/arya-analytics/x v0.0.0-20220516233935-c9dbaa7263d1 => ./x
 require (
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
-	github.com/cockroachdb/errors v1.8.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect
 	github.com/cockroachdb/redact v1.0.8 // indirect
 	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect

@@ -20,5 +20,5 @@ func (b *Builder) New(opts ...aspen.Option) (aspen.DB, error) {
 	if len(b.peerAddresses) == 0 {
 		opts = append(opts, aspen.Bootstrap())
 	}
-	return aspen.Join(dir, addr, b.peerAddresses, append(b.DefaultOptions, opts...)...)
+	return aspen.Open(dir, addr, b.peerAddresses, append(b.DefaultOptions, opts...)...)
 }

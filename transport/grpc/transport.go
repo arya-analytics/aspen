@@ -11,6 +11,7 @@ import (
 	grpcx "github.com/arya-analytics/x/grpc"
 	"github.com/arya-analytics/x/shutdown"
 	"github.com/arya-analytics/x/version"
+	"github.com/cockroachdb/errors"
 	"go/types"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -51,11 +52,17 @@ func (p *pledgeTransport) Handle(handle func(context.Context, node.ID) (node.ID,
 }
 
 func (p *pledgeTransport) Pledge(ctx context.Context, req *aspenv1.ClusterPledge) (*aspenv1.ClusterPledge, error) {
+	if p.handle == nil {
+		return &aspenv1.ClusterPledge{}, errors.New("unavailable")
+	}
 	id, err := p.handle(ctx, p.translateForward(req))
 	return p.translateBackward(id), err
 }
 
 func (p *pledgeTransport) translateForward(msg *aspenv1.ClusterPledge) node.ID {
+	if msg == nil {
+		return 0
+	}
 	return node.ID(msg.NodeId)
 }
 
@@ -99,6 +106,9 @@ func (c *clusterGossip) Gossip(ctx context.Context, req *aspenv1.ClusterGossip) 
 }
 
 func (c *clusterGossip) translateForward(msg *aspenv1.ClusterGossip) (tMsg gossip.Message) {
+	if msg == nil {
+		return tMsg
+	}
 	if len(msg.Digests) > 0 {
 		tMsg.Digests = make(map[node.ID]node.Digest)
 	}
@@ -179,6 +189,9 @@ func (o *operations) translateBackward(msg kv.OperationMessage) *aspenv1.Operati
 }
 
 func (o *operations) translateForward(msg *aspenv1.OperationMessage) (tMsg kv.OperationMessage) {
+	if msg == nil {
+		return tMsg
+	}
 	tMsg.Sender = node.ID(msg.Sender)
 	for _, o := range msg.Operations {
 		tMsg.Operations = append(tMsg.Operations, convertOperationTransport(o))
@@ -235,6 +248,9 @@ func (l *lease) translateBackward(msg kv.LeaseMessage) *aspenv1.LeaseMessage {
 }
 
 func (l *lease) translateForward(msg *aspenv1.LeaseMessage) (tMsg kv.LeaseMessage) {
+	if msg == nil {
+		return tMsg
+	}
 	tMsg.Operation = convertOperationTransport(msg.Operation)
 	return tMsg
 }
@@ -277,6 +293,9 @@ func (f *feedback) translateBackward(msg kv.FeedbackMessage) *aspenv1.FeedbackMe
 }
 
 func (f *feedback) translateForward(msg *aspenv1.FeedbackMessage) (tMsg kv.FeedbackMessage) {
+	if msg == nil {
+		return tMsg
+	}
 	tMsg.Sender = node.ID(msg.Sender)
 	for _, f := range msg.Digests {
 		tMsg.Digests = append(tMsg.Digests, kv.Digest{
@@ -300,6 +319,7 @@ func New() *transport {
 	}
 }
 
+// transport implements the aspen.Transport interface.
 type transport struct {
 	pool          *grpcx.Pool
 	pledge        *pledgeTransport
@@ -309,25 +329,15 @@ type transport struct {
 	feedback      *feedback
 }
 
-func (t *transport) Pledge() pledge.Transport {
-	return t.pledge
-}
+func (t *transport) Pledge() pledge.Transport { return t.pledge }
 
-func (t *transport) Cluster() gossip.Transport {
-	return t.clusterGossip
-}
+func (t *transport) Cluster() gossip.Transport { return t.clusterGossip }
 
-func (t *transport) Operations() kv.OperationsTransport {
-	return t.operations
-}
+func (t *transport) Operations() kv.OperationsTransport { return t.operations }
 
-func (t *transport) Lease() kv.LeaseTransport {
-	return t.lease
-}
+func (t *transport) Lease() kv.LeaseTransport { return t.lease }
 
-func (t *transport) Feedback() kv.FeedbackTransport {
-	return t.feedback
-}
+func (t *transport) Feedback() kv.FeedbackTransport { return t.feedback }
 
 func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error {
 	server := grpc.NewServer()

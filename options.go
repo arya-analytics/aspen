@@ -127,13 +127,14 @@ func mergeDefaultOptions(o *options) {
 }
 
 func defaultOptions() *options {
+	logger, _ := zap.NewProduction()
 	return &options{
 		ctx:       context.Background(),
 		dirname:   "",
 		cluster:   cluster.DefaultConfig(),
 		kv:        kv.DefaultConfig(),
 		transport: grpc.New(),
-		logger:    zap.NewNop().Sugar(),
+		logger:    logger.Sugar(),
 	}
 }
 

@@ -94,7 +94,7 @@ func DefaultConfig() Config {
 	return Config{
 		RequestTimeout:   5 * time.Second,
 		PledgeBaseRetry:  1 * time.Second,
-		PledgeRetryScale: 1.5,
+		PledgeRetryScale: 1.25,
 		Logger:           zap.NewNop().Sugar(),
 		MaxProposals:     10,
 		peerAddresses:    []address.Address{},
