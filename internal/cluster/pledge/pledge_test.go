@@ -35,10 +35,10 @@ func removeDuplicateValues(intSlice []node.ID) []node.ID {
 
 var _ = Describe("Node", func() {
 	var (
-		logger *zap.Logger
+		logger *zap.SugaredLogger
 	)
 	BeforeEach(func() {
-		logger = zap.NewNop()
+		logger = zap.NewNop().Sugar()
 	})
 	Describe("Pledge", func() {
 		Context("No Nodes Responding", func() {
@@ -276,7 +276,7 @@ var _ = Describe("Node", func() {
 		Context("No peer addresses provided to pledge", func() {
 			It("Should return an ErrNoPeers", func() {
 				id, err := pledge.Pledge(context.Background(), []address.Address{}, func() node.Group { return nil }, pledge.Config{})
-				Expect(err).To(Equal(pledge.ErrNoPeers))
+				Expect(err).To(HaveOccurred())
 				Expect(id).To(Equal(node.ID(0)))
 			})
 		})
