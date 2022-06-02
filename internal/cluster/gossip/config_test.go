@@ -20,7 +20,7 @@ var _ = Describe("Config", func() {
 	Describe("Validate", func() {
 		It("Should return an error when no transport is provided", func() {
 			cfg := gossip.Config{}
-			Expect(cfg.Validate()).To(MatchError("gossip transport required"))
+			Expect(cfg.Validate()).To(MatchError("[gossip] - transport required"))
 		})
 	})
 })

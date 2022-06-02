@@ -37,7 +37,6 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Transport == nil {
 		cfg.Transport = def.Transport
 	}
-	cfg.Logger = cfg.Logger.Named("gossip")
 	return cfg
 }
 

@@ -16,11 +16,11 @@ import (
 var _ = Describe("OperationSender", func() {
 	var (
 		net    *tmock.Network[gossip.Message, gossip.Message]
-		logger *zap.Logger
+		logger *zap.SugaredLogger
 	)
 	BeforeEach(func() {
 		net = tmock.NewNetwork[gossip.Message, gossip.Message]()
-		logger = zap.NewNop()
+		logger = zap.NewNop().Sugar()
 	})
 	Describe("Two Node", func() {
 		var (

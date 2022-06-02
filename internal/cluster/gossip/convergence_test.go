@@ -47,11 +47,11 @@ var progressiveConvergence = []convergenceVars{
 var _ = Describe("Convergence", func() {
 	var (
 		net    *tmock.Network[gossip.Message, gossip.Message]
-		logger *zap.Logger
+		logger *zap.SugaredLogger
 	)
 	BeforeEach(func() {
 		net = tmock.NewNetwork[gossip.Message, gossip.Message]()
-		logger = zap.NewNop()
+		logger = zap.NewNop().Sugar()
 	})
 	p := alamos.NewParametrize(alamos.IterVars(progressiveConvergence))
 	p.Template(func(i int, values convergenceVars) {
