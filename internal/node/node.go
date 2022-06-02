@@ -10,18 +10,6 @@ import (
 
 type ID uint32
 
-func (id ID) Greater(o ID) bool {
-	return id > o
-}
-
-func (id ID) Less(o ID) bool {
-	return id < o
-}
-
-func (id ID) Equal(o ID) bool {
-	return id == o
-}
-
 func (id ID) String() string { return "Node " + strconv.Itoa(int(id)) }
 
 type Node struct {

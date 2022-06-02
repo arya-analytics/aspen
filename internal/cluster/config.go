@@ -4,6 +4,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	pledge_ "github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/x/alamos"
+	"github.com/arya-analytics/x/errutil"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"
@@ -72,13 +73,10 @@ func (cfg Config) Merge(def Config) Config {
 }
 
 func (cfg Config) Validate() error {
-	if err := cfg.Pledge.Validate(); err != nil {
-		return err
-	}
-	if err := cfg.Gossip.Validate(); err != nil {
-		return err
-	}
-	return nil
+	c := errutil.NewCatchSimple()
+	c.Exec(cfg.Pledge.Validate)
+	c.Exec(cfg.Gossip.Validate)
+	return c.Error()
 }
 
 // String returns a pretty printed representation of the config.

@@ -28,30 +28,11 @@ func (n Group) Addresses() (addresses []address.Address) {
 }
 
 func (n Group) Digests() Digests {
-	digests := make(Digests, len(n))
+	dig := make(Digests, len(n))
 	for id, node := range n {
-		digests[id] = node.Digest()
+		dig[id] = node.Digest()
 	}
-	return digests
+	return dig
 }
 
 func (n Group) Copy() Group { return filter.Map(n, func(_ ID, _ Node) bool { return true }) }
-
-func Merge(a, b Group) Group {
-	res := make(Group)
-	for aID, aNode := range a {
-		bNode, bOk := b[aID]
-		if bOk && bNode.Heartbeat.OlderThan(aNode.Heartbeat) {
-			res[aID] = bNode
-		} else {
-			res[aID] = aNode
-		}
-	}
-	for bID, bNode := range b {
-		_, aOk := a[bID]
-		if !aOk {
-			res[bID] = bNode
-		}
-	}
-	return res
-}
