@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
+	"os"
 	"time"
 )
 
@@ -40,18 +41,28 @@ var progressiveNewConvergence = []newConvergenceVars{
 	},
 }
 
-var _ = Describe("Convergence", Serial, func() {
+var _ = Describe("Convergence", Serial, Ordered, func() {
 	var (
 		gossipNet *tmock.Network[gossip.Message, gossip.Message]
 		pledgeNet *tmock.Network[node.ID, node.ID]
 		logger    *zap.SugaredLogger
 		sd        shutdown.Shutdown
+		exp       alamos.Experiment
 	)
+	BeforeAll(func() {
+		exp = alamos.New("convergence_test")
+	})
 	BeforeEach(func() {
+		sd = shutdown.New()
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
-		logger = zap.NewNop().Sugar()
-		sd = shutdown.New()
+		log := zap.NewNop()
+		logger = log.Sugar()
+	})
+	AfterAll(func() {
+		f, err := os.Create("aspen_convergence_report.json")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exp.Report().WriteJSON(f)).To(Succeed())
 	})
 	Context("Serial Pledge", func() {
 		p := alamos.NewParametrize(alamos.IterVars(progressiveNewConvergence))
@@ -64,6 +75,7 @@ var _ = Describe("Convergence", Serial, func() {
 					clusters  []cluster.Cluster
 					addresses []address.Address
 				)
+				subExp := alamos.Sub(exp, fmt.Sprintf("convergence_test_%v", i))
 				for i := 0; i < values.clusterSize; i++ {
 					gossipT := gossipNet.Route("")
 					pledgeT := pledgeNet.Route(gossipT.Address)
@@ -73,10 +85,11 @@ var _ = Describe("Convergence", Serial, func() {
 						gossipT.Address,
 						rand.SubSlice[address.Address](addresses, values.peerAddrCount),
 						cluster.Config{
-							Logger:  logger,
-							Pledge:  pledge.Config{Transport: pledgeT},
-							Gossip:  gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
-							Storage: kvmock.New(),
+							Logger:     logger,
+							Pledge:     pledge.Config{Transport: pledgeT},
+							Gossip:     gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
+							Storage:    kvmock.New(),
+							Experiment: alamos.Sub(subExp, fmt.Sprintf("cluster_%v", i)),
 						},
 					)
 					Expect(err).ToNot(HaveOccurred())

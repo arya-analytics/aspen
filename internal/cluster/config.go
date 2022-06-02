@@ -54,6 +54,9 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.Pledge.Logger == nil {
 		cfg.Pledge.Logger = cfg.Logger.Named("pledge")
 	}
+	if cfg.Pledge.Experiment == nil {
+		cfg.Pledge.Experiment = cfg.Experiment
+	}
 	cfg.Pledge = cfg.Pledge.Merge(def.Pledge)
 
 	// |||| GOSSIP ||||
@@ -63,6 +66,9 @@ func (cfg Config) Merge(def Config) Config {
 	}
 	if cfg.Gossip.Shutdown == nil {
 		cfg.Gossip.Shutdown = cfg.Shutdown
+	}
+	if cfg.Gossip.Experiment == nil {
+		cfg.Gossip.Experiment = cfg.Experiment
 	}
 	cfg.Gossip = cfg.Gossip.Merge(def.Gossip)
 
