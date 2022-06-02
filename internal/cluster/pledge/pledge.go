@@ -27,7 +27,7 @@ import (
 	"github.com/arya-analytics/x/filter"
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/rand"
-	xtime "github.com/arya-analytics/x/util/time"
+	xtime "github.com/arya-analytics/x/time"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -48,6 +48,9 @@ var (
 // implementation details. Although IDs are guaranteed to be unique, they are not guarantee to be sequential. Pledge
 // will continue to contact peers in cfg.peerAddresses at a scaling interval until the provided context is cancelled.
 func Pledge(ctx context.Context, peers []address.Address, candidates func() node.Group, cfg Config) (id node.ID, err error) {
+	if ctx.Err() != nil {
+		return 0, ctx.Err()
+	}
 	if len(peers) == 0 {
 		return id, errors.New("[pledge] no peers provided")
 	}
@@ -67,11 +70,14 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 	for range t.C {
 		addr := nextAddr()
 		cfg.Logger.Debugw("pledging to peer", "address", addr)
-		reqCtx, cancel := context.WithTimeout(ctx, cfg.RequestTimeout)
+		reqCtx, cancel := context.WithTimeout(context.Background(), cfg.RequestTimeout)
 		id, err = cfg.Transport.Send(reqCtx, addr, 0)
 		cancel()
 		if !errors.Is(err, context.DeadlineExceeded) {
 			break
+		}
+		if ctx.Err() != nil {
+			return id, ctx.Err()
 		}
 		cfg.Logger.Errorw("failed to contact peer, retrying", "err", err)
 	}

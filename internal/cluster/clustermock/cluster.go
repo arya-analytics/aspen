@@ -18,7 +18,7 @@ type Builder struct {
 
 func NewBuilder(baseCfg cluster.Config) *Builder {
 	return &Builder{
-		BaseCfg:     baseCfg,
+		BaseCfg:     baseCfg.Merge(cluster.DefaultConfig()),
 		GossipNet:   tmock.NewNetwork[gossip.Message, gossip.Message](),
 		PledgeNet:   tmock.NewNetwork[node.ID, node.ID](),
 		ClusterAPIs: make(map[node.ID]cluster.Cluster),

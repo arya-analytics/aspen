@@ -15,7 +15,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
-	"os"
 	"time"
 )
 
@@ -58,11 +57,6 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		log := zap.NewNop()
 		logger = log.Sugar()
-	})
-	AfterAll(func() {
-		f, err := os.Create("aspen_convergence_report.json")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(exp.Report().WriteJSON(f)).To(Succeed())
 	})
 	Context("Serial Pledge", func() {
 		p := alamos.NewParametrize(alamos.IterVars(progressiveNewConvergence))

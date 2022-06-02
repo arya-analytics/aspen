@@ -77,7 +77,11 @@ func (cfg Config) String() string { return cfg.Report().String() }
 // Report implements the alamos.Reporter interface.
 func (cfg Config) Report() alamos.Report {
 	report := make(alamos.Report)
-	report["transport"] = cfg.Transport.String()
+	if cfg.Transport != nil {
+		report["transport"] = cfg.Transport.String()
+	} else {
+		report["transport"] = "no transport provided"
+	}
 	report["requestTimeout"] = cfg.RequestTimeout
 	report["pledgeBaseRetry"] = cfg.PledgeBaseRetry
 	report["pledgeRetryScale"] = cfg.PledgeRetryScale

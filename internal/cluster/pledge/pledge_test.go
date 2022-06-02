@@ -58,22 +58,25 @@ var _ = Describe("Node", func() {
 					t.Handle(handler)
 					addresses = append(addresses, t.Address)
 				}
-				ctx, cancel := context.WithCancel(context.Background())
-				go func() {
-					time.Sleep(15 * time.Millisecond)
-					cancel()
-				}()
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Millisecond)
+				defer cancel()
 				id, err := pledge.Pledge(
 					ctx,
 					addresses,
 					func() (g node.Group) { return g },
-					pledge.Config{RequestTimeout: 1 * time.Millisecond, Transport: t1},
+					pledge.Config{
+						RequestTimeout:   1 * time.Millisecond,
+						Transport:        t1,
+						PledgeRetryScale: 2,
+						PledgeBaseRetry:  2 * time.Millisecond,
+					},
 				)
-				Expect(err).To(Equal(context.Canceled))
+				Expect(err).To(Equal(context.DeadlineExceeded))
 				Expect(id).To(Equal(node.ID(0)))
 				for i, entry := range net.Entries {
 					Expect(entry.Address).To(Equal(addresses[i%4]))
 				}
+				Expect(len(net.Entries)).To(Equal(4))
 			})
 		})
 	})
@@ -90,23 +93,17 @@ var _ = Describe("Node", func() {
 				for i := 0; i < numCandidates; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
-					pledge.Arbitrate(candidates, cfg)
+					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
 				}
-				ctx, cancel := context.WithCancel(context.Background())
-				go func() {
-					time.Sleep(100 * time.Millisecond)
-					cancel()
-				}()
+				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+				defer cancel()
 				id, err := pledge.Pledge(
 					ctx,
 					nodes.Addresses(),
 					candidates,
-					pledge.Config{
-						Transport: t1,
-						Logger:    logger,
-					},
+					pledge.Config{Transport: t1, Logger: logger},
 				)
 				Expect(err).To(BeNil())
 				Expect(id).To(Equal(node.ID(10)))
@@ -129,9 +126,9 @@ var _ = Describe("Node", func() {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					if i != 0 {
-						pledge.Arbitrate(allCandidates, cfg)
+						Expect(pledge.Arbitrate(allCandidates, cfg)).To(Succeed())
 					} else {
-						pledge.Arbitrate(responsibleCandidates, cfg)
+						Expect(pledge.Arbitrate(responsibleCandidates, cfg)).To(Succeed())
 					}
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
@@ -163,9 +160,9 @@ var _ = Describe("Node", func() {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					if (i % 2) == 0 {
-						pledge.Arbitrate(allCandidates, cfg)
+						Expect(pledge.Arbitrate(allCandidates, cfg)).To(Succeed())
 					} else {
-						pledge.Arbitrate(extraCandidates, cfg)
+						Expect(pledge.Arbitrate(extraCandidates, cfg)).To(Succeed())
 					}
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
@@ -200,7 +197,7 @@ var _ = Describe("Node", func() {
 						state = node.StateDead
 					}
 					cfg := pledge.Config{Transport: t, Logger: logger}
-					pledge.Arbitrate(candidates, cfg)
+					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: state}
 				}
@@ -227,7 +224,7 @@ var _ = Describe("Node", func() {
 				for i := 0; i < numCandidates; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
-					pledge.Arbitrate(candidates, cfg)
+					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
 					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
 				}
@@ -251,9 +248,9 @@ var _ = Describe("Node", func() {
 				for i := 0; i < numCandidates; i++ {
 					t := net.Route("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
-					pledge.Arbitrate(candidates, cfg)
+					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
-					nodes[id] = node.Node{ID: node.ID(i), Address: t.Address, State: node.StateHealthy}
+					nodes[id] = node.Node{ID: id, Address: t.Address, State: node.StateHealthy}
 				}
 				ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 				defer cancel()

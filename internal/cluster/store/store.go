@@ -69,13 +69,13 @@ func (s *State) Load(r io.Reader) error {
 		n := &node.Node{}
 		err := n.Load(r)
 		if err == io.EOF {
-			break
+			return nil
 		}
 		if err != nil {
 			return err
 		}
+		s.Nodes[n.ID] = *n
 	}
-	return nil
 }
 
 type core struct{ store.Observable[State] }
@@ -88,8 +88,7 @@ func (c *core) Get(id node.ID) (node.Node, bool) {
 
 // GetHost implements Store.
 func (c *core) GetHost() node.Node {
-	snap := c.Observable.ReadState()
-	n, _ := snap.Nodes[snap.HostID]
+	n, _ := c.Get(c.Observable.ReadState().HostID)
 	return n
 }
 
