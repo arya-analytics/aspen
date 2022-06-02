@@ -141,7 +141,7 @@ func defaultOptions() *options {
 
 func Bootstrap() Option { return func(o *options) { o.bootstrap = true } }
 
-func WithLogger(logger *zap.Logger) Option { return func(o *options) { o.logger = logger } }
+func WithLogger(logger *zap.SugaredLogger) Option { return func(o *options) { o.logger = logger } }
 
 func WithExperiment(experiment alamos.Experiment) Option {
 	return func(o *options) { o.experiment = experiment }

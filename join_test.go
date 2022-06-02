@@ -12,10 +12,11 @@ var _ = Describe("Join", func() {
 	var (
 		db1    aspen.DB
 		db2    aspen.DB
-		logger *zap.Logger
+		logger *zap.SugaredLogger
 	)
 	BeforeEach(func() {
-		logger, _ = zap.NewDevelopment()
+		log, _ := zap.NewDevelopment()
+		logger = log.Sugar()
 		var err error
 		db1, err = aspen.Join(
 			"./testdata/db1",
