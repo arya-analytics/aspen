@@ -17,22 +17,6 @@ import (
 	"time"
 )
 
-func removeDuplicateValues(intSlice []node.ID) []node.ID {
-	keys := make(map[node.ID]bool)
-	var list []node.ID
-
-	// If the key(values of the slice) is not equal
-	// to the already present value in new slice (list)
-	// then we append it. else we jump on another element.
-	for _, entry := range intSlice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
 var _ = Describe("Node", func() {
 	var logger *zap.SugaredLogger
 
@@ -267,7 +251,7 @@ var _ = Describe("Node", func() {
 					}(i)
 				}
 				wg.Wait()
-				Expect(len(removeDuplicateValues(ids))).To(Equal(numPledges))
+				Expect(len(filter.Duplicates(ids))).To(Equal(numPledges))
 			})
 
 		})

@@ -33,6 +33,9 @@ type (
 type KV interface {
 	Writer
 	Reader
+	// Closer is used to shut down the KV store. It's important to not that this does NOT close the underlying
+	// store or the network. It simply shuts down all distribution processes that this package runs.
+	// The underlying store (Config.Engine) must be closed by the caller.
 	Closer
 }
 

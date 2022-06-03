@@ -35,15 +35,12 @@ func Open(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	return &db{
-		Cluster: clust,
-		KV:      kve,
-	}, nil
+	return &db{Cluster: clust, KV: kve, options: o}, nil
 }
 
 func openKV(opts *options) error {
 	if opts.kv.Engine == nil {
-		pebbleDB, err := pebble.Open(opts.dirname, &pebble.Options{})
+		pebbleDB, err := pebble.Open(opts.dirname, &pebble.Options{FS: opts.fs})
 		opts.kv.Engine = pebblekv.Wrap(pebbleDB)
 		opts.cluster.Storage = opts.kv.Engine
 		return err

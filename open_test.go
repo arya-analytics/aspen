@@ -23,20 +23,22 @@ var _ = Describe("Open", func() {
 		exp = alamos.New("aspen_join_test")
 		var err error
 		db1, err = aspen.Open(
-			"./testdata/db1",
+			"",
 			"localhost:22546",
 			[]address.Address{},
 			aspen.Bootstrap(),
 			aspen.WithLogger(logger),
 			aspen.WithExperiment(alamos.Sub(exp, "db1")),
+			aspen.MemBacked(),
 		)
 		Expect(err).ToNot(HaveOccurred())
 		db2, err = aspen.Open(
-			"./testdata/db2",
+			"",
 			"localhost:22547",
 			[]address.Address{"localhost:22546"},
 			aspen.WithLogger(logger),
 			aspen.WithExperiment(alamos.Sub(exp, "db2")),
+			aspen.MemBacked(),
 		)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -50,7 +52,7 @@ var _ = Describe("Open", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(exp.Report().WriteJSON(f)).To(Succeed())
 	})
-	FIt("Should be able to join two clusters", func() {
+	It("Should be able to join two clusters", func() {
 		Expect(len(db1.Nodes())).To(Equal(2))
 		Expect(len(db2.Nodes())).To(Equal(2))
 	})

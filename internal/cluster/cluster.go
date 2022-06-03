@@ -65,6 +65,11 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 
 	c := &cluster{Store: s, cfg: cfg}
 
+	g, err := gossip.New(s, c.cfg.Gossip)
+	if err != nil {
+		return nil, err
+	}
+
 	// If our store is empty or invalid, we need to boostrap the cluster.
 	if !s.Valid() && len(peers) != 0 {
 		cfg.Logger.Info("no existing cluster found in storage. pledging to cluster instead.")
@@ -76,7 +81,7 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		// operationSender initial cluster state, so we can contact it for
 		// information on other nodes instead of peers.
 		cfg.Logger.Info("gossiping initial state through peer addresses.")
-		if err = gossipInitialState(ctx, c.Store, c.cfg, peers); err != nil {
+		if err = gossipInitialState(ctx, c.Store, c.cfg, peers, g); err != nil {
 			return c, err
 		}
 	} else if !s.Valid() && len(peers) == 0 {
@@ -92,10 +97,6 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 		}
 	}
 
-	g, err := gossip.New(s, c.cfg.Gossip)
-	if err != nil {
-		return nil, err
-	}
 	g.Gossip(ctx)
 
 	flushStore(cfg, s)
@@ -149,14 +150,11 @@ func gossipInitialState(
 	s store.Store,
 	cfg Config,
 	peers []address.Address,
+	g *gossip.Gossip,
 ) error {
-	g, err := gossip.New(s, cfg.Gossip)
-	if err != nil {
-		return err
-	}
 	nextAddr := iter.InfiniteSlice(peers)
 	for peerAddr := nextAddr(); peerAddr != ""; peerAddr = nextAddr() {
-		if err = g.GossipOnceWith(ctx, peerAddr); err != nil {
+		if err := g.GossipOnceWith(ctx, peerAddr); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}

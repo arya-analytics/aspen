@@ -102,6 +102,10 @@ func mergeDefaultOptions(o *options) {
 
 	// |||| SHUTDOWN ||||
 
+	if o.shutdown == nil {
+		o.shutdown = def.shutdown
+	}
+
 	o.cluster.Shutdown = o.shutdown
 	o.kv.Shutdown = o.shutdown
 
@@ -124,6 +128,10 @@ func mergeDefaultOptions(o *options) {
 	o.cluster.Logger = o.logger.Named("cluster")
 	o.kv.Logger = o.logger.Named("kv")
 
+	if o.bootstrap {
+		o.peerAddresses = []address.Address{}
+	}
+
 }
 
 func defaultOptions() *options {
@@ -135,6 +143,7 @@ func defaultOptions() *options {
 		kv:        kv.DefaultConfig(),
 		transport: grpc.New(),
 		logger:    logger.Sugar(),
+		shutdown:  shutdown.New(),
 	}
 }
 
@@ -144,4 +153,11 @@ func WithLogger(logger *zap.SugaredLogger) Option { return func(o *options) { o.
 
 func WithExperiment(experiment alamos.Experiment) Option {
 	return func(o *options) { o.experiment = experiment }
+}
+
+func MemBacked() Option {
+	return func(o *options) {
+		o.dirname = ""
+		o.fs = vfs.NewMem()
+	}
 }
