@@ -35,8 +35,8 @@ import (
 )
 
 var (
-	// ErrQuorumUnreachable is returned when a quorum jury cannot be safely assembled.
-	ErrQuorumUnreachable = errors.New("quorum unreachable")
+	// errQuorumUnreachable is returned when a quorum jury cannot be safely assembled.
+	errQuorumUnreachable = errors.New("quorum unreachable")
 	// errProposalRejected is an internal error returned when a juror rejects a pledge proposal from a responsible node.
 	errProposalRejected = errors.New("proposal rejected")
 )
@@ -77,9 +77,9 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 			break
 		}
 		if ctx.Err() != nil {
-			return id, ctx.Err()
+			return 0, ctx.Err()
 		}
-		cfg.Logger.Warnf("failed to contact peer, retrying in %s", dur)
+		cfg.Logger.Warnf("failed to pledge, retrying in %s", dur)
 	}
 
 	if err != nil {
@@ -173,7 +173,7 @@ func (r *responsible) buildQuorum() (node.Group, error) {
 	size := len(presentCandidates)/2 + 1
 	healthy := presentCandidates.WhereState(node.StateHealthy)
 	if len(healthy) < size {
-		return node.Group{}, ErrQuorumUnreachable
+		return node.Group{}, errQuorumUnreachable
 	}
 	return rand.SubMap(healthy, size), nil
 }

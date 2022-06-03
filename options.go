@@ -129,13 +129,6 @@ func newOptions(dirname string, addr address.Address, peers []address.Address, o
 	return o
 }
 
-func validateOptions(o *options) error {
-	//if !o.bootstrap && len(o.peerAddresses) == 0 {
-	//	return errors.New("[aspen] - peer addresses must be provided when not bootstrapping a cluster")
-	//}
-	return nil
-}
-
 func mergeDefaultOptions(o *options) {
 	def := defaultOptions()
 

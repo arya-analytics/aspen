@@ -15,10 +15,6 @@ func Open(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	if err := validateOptions(o); err != nil {
-		return nil, err
-	}
-
 	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
 		return nil, err
 	}

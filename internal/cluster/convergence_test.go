@@ -78,14 +78,13 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 				for i := 0; i < values.clusterSize; i++ {
 					gossipT := gossipNet.Route("")
 					pledgeT := pledgeNet.Route(gossipT.Address)
-					time.Sleep(5 * time.Millisecond)
 					cluster, err := cluster.Join(
 						ctx,
 						gossipT.Address,
 						rand.SubSlice[address.Address](addresses, values.peerAddrCount),
 						cluster.Config{
 							Logger:     logger,
-							Pledge:     pledge.Config{Transport: pledgeT},
+							Pledge:     pledge.Config{Transport: pledgeT, RetryInterval: values.gossipInterval, RetryScale: 1},
 							Gossip:     gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
 							Storage:    kvmock.New(),
 							Experiment: alamos.Sub(subExp, fmt.Sprintf("cluster_%v", i)),

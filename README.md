@@ -7,6 +7,3 @@
 
 # Aspen
 
-<img src="docs/media/aspen" width="70%"/>
-
-Location aware peer to peer network that implements the gossip protocol.
