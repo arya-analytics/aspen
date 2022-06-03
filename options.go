@@ -8,9 +8,9 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/shutdown"
-	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble/vfs"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Option func(*options)
@@ -48,11 +48,70 @@ type options struct {
 func (o *options) String() string { return o.Report().String() }
 
 func (o *options) Report() alamos.Report {
+	// The key-value store and cluster state services will attach their own reports to the experiment,
+	// so we only need to report values that they won't.
 	return alamos.Report{
 		"dirname":   o.dirname,
 		"addr":      o.addr,
 		"peers":     o.peerAddresses,
 		"bootstrap": o.bootstrap,
+	}
+}
+
+// Bootstrap tells aspen to bootstrap a new cluster. This option automatically assigns the host node and ID of 1.
+func Bootstrap() Option { return func(o *options) { o.bootstrap = true } }
+
+// WithLogger sets the logger for aspen.
+func WithLogger(logger *zap.SugaredLogger) Option { return func(o *options) { o.logger = logger } }
+
+// WithExperiment sets the experiment for aspen. Aspen will attach any metrics and reports it generates to this
+// experiment.
+func WithExperiment(experiment alamos.Experiment) Option {
+	return func(o *options) { o.experiment = experiment }
+}
+
+// WithEngine sets the underlying KV engine that aspen uses to store its data. When using this option, the caller
+// should transfer all responsibility for executing queries on the engine to aspen.
+func WithEngine(engine kv.KV) Option { return func(o *options) { o.kv.Engine = engine } }
+
+// MemBacked sets aspen to use a memory-backed KV engine. This option is ignored if a custom KV engine is set (using
+// WithEngine).
+func MemBacked() Option {
+	return func(o *options) {
+		o.dirname = ""
+		o.fs = vfs.NewMem()
+	}
+}
+
+// PropagationConfig is a set of configurable values that tune how quickly state converges across the cluster.
+// Lower intervals typically bring faster convergence, but also use considerably more network traffic.
+type PropagationConfig struct {
+	// PledgeRetryInterval is the interval at which aspen will retry sending a pledge to a peer.
+	// Pledges are sent at a scaled interval (see PledgeRetryScale).
+	PledgeRetryInterval time.Duration
+	// PledgeRetryScale is the factory at which the interval increases after failed pledges. For example, a
+	// PledgeRetryInterval of 2 seconds and a PledgeRetryScale of 2 will result in pledge intervals of
+	// 2, 4, 8, 16, 32, and so on until the pledge is accepted.
+	PledgeRetryScale float64
+	// PledgeRequestTimeout is the maximum amount of time aspen will wait for a pledge request to be accepted before
+	// moving on to the next peer.
+	PledgeRequestTimeout time.Duration
+	// ClusterGossipInterval is the interval at which aspen will propagate cluster state to other nodes.
+	// Aspen will send messages regardless of whether the state has changed, so setting this interval to a low
+	// value may result in very high network traffic.
+	ClusterGossipInterval time.Duration
+	KVGossipInterval      time.Duration
+}
+
+// WithPropagationConfig sets the parameters defining how quickly cluster state converges. See PropagationConfig
+// for more details.
+func WithPropagationConfig(config PropagationConfig) Option {
+	return func(o *options) {
+		o.cluster.Pledge.RetryInterval = config.PledgeRetryInterval
+		o.cluster.Pledge.RetryScale = config.PledgeRetryScale
+		o.cluster.Pledge.RequestTimeout = config.PledgeRequestTimeout
+		o.cluster.Gossip.Interval = config.ClusterGossipInterval
+		o.kv.GossipInterval = config.KVGossipInterval
 	}
 }
 
@@ -71,9 +130,9 @@ func newOptions(dirname string, addr address.Address, peers []address.Address, o
 }
 
 func validateOptions(o *options) error {
-	if !o.bootstrap && len(o.peerAddresses) == 0 {
-		return errors.New("peer addresses must be provided when not boostrapping a cluster")
-	}
+	//if !o.bootstrap && len(o.peerAddresses) == 0 {
+	//	return errors.New("[aspen] - peer addresses must be provided when not bootstrapping a cluster")
+	//}
 	return nil
 }
 
@@ -144,20 +203,5 @@ func defaultOptions() *options {
 		transport: grpc.New(),
 		logger:    logger.Sugar(),
 		shutdown:  shutdown.New(),
-	}
-}
-
-func Bootstrap() Option { return func(o *options) { o.bootstrap = true } }
-
-func WithLogger(logger *zap.SugaredLogger) Option { return func(o *options) { o.logger = logger } }
-
-func WithExperiment(experiment alamos.Experiment) Option {
-	return func(o *options) { o.experiment = experiment }
-}
-
-func MemBacked() Option {
-	return func(o *options) {
-		o.dirname = ""
-		o.fs = vfs.NewMem()
 	}
 }

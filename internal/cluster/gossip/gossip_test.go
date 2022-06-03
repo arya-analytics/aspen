@@ -55,7 +55,7 @@ var _ = Describe("OperationSender", func() {
 			Expect(sOne.CopyState().Nodes[2].Heartbeat.Version).To(Equal(uint32(0)))
 		})
 		It("Should gossip at the correct interval", func() {
-			g1.Gossip(ctx)
+			g1.GoGossip(ctx)
 			time.Sleep(12 * time.Millisecond)
 			Expect(sd.Shutdown()).To(Succeed())
 			Expect(sOne.CopyState().Nodes).To(HaveLen(3))

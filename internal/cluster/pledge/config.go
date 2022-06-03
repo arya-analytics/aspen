@@ -19,11 +19,11 @@ type Config struct {
 	// RequestTimeout is the timeout for a peer to respond to a pledge or proposal request.
 	// If the request is not responded to before the timeout, a new jury will be formed and the request will be retried.
 	RequestTimeout time.Duration
-	// PledgeBaseRetry sets the initial retry interval for a Pledge to a peer.
-	PledgeBaseRetry time.Duration
+	// RetryInterval sets the initial retry interval for a Pledge to a peer.
+	RetryInterval time.Duration
 	// PledgeInterval scale sets how quickly the time in-between retries will increase during a Pledge to a peer. For example,
 	// a value of 2 would result in a retry interval of 1,2, 4, 8, 16, 32, 64, ... seconds.
-	PledgeRetryScale float64
+	RetryScale float64
 	// Logger is the witness of it all.
 	Logger *zap.SugaredLogger
 	// MaxProposals is the maximum number of proposals a responsible will make to a quorum before giving up.
@@ -43,11 +43,11 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.RequestTimeout == 0 {
 		cfg.RequestTimeout = def.RequestTimeout
 	}
-	if cfg.PledgeBaseRetry == 0 {
-		cfg.PledgeBaseRetry = def.PledgeBaseRetry
+	if cfg.RetryInterval == 0 {
+		cfg.RetryInterval = def.RetryInterval
 	}
-	if cfg.PledgeRetryScale == 0 {
-		cfg.PledgeRetryScale = def.PledgeRetryScale
+	if cfg.RetryScale == 0 {
+		cfg.RetryScale = def.RetryScale
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = def.Logger
@@ -83,8 +83,8 @@ func (cfg Config) Report() alamos.Report {
 		report["transport"] = "not provided"
 	}
 	report["requestTimeout"] = cfg.RequestTimeout
-	report["pledgeBaseRetry"] = cfg.PledgeBaseRetry
-	report["pledgeRetryScale"] = cfg.PledgeRetryScale
+	report["pledgeBaseRetry"] = cfg.RetryInterval
+	report["pledgeRetryScale"] = cfg.RetryScale
 	report["maxProposals"] = cfg.MaxProposals
 	report["peerAddresses"] = cfg.peerAddresses
 	return report
@@ -92,11 +92,11 @@ func (cfg Config) Report() alamos.Report {
 
 func DefaultConfig() Config {
 	return Config{
-		RequestTimeout:   5 * time.Second,
-		PledgeBaseRetry:  1 * time.Second,
-		PledgeRetryScale: 1.25,
-		Logger:           zap.NewNop().Sugar(),
-		MaxProposals:     10,
-		peerAddresses:    []address.Address{},
+		RequestTimeout: 5 * time.Second,
+		RetryInterval:  1 * time.Second,
+		RetryScale:     1.25,
+		Logger:         zap.NewNop().Sugar(),
+		MaxProposals:   10,
+		peerAddresses:  []address.Address{},
 	}
 }

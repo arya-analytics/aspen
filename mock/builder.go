@@ -13,7 +13,16 @@ type Builder struct {
 	DataDir        string
 	DefaultOptions []aspen.Option
 	peerAddresses  []address.Address
+	TmpDirs        map[aspen.ID]string
 	tmpDir         string
+	addressFactory *address.Factory
+	Contexts       map[aspen.ID]Context
+}
+
+type Context struct {
+	Addr address.Address
+	Dir  string
+	DB   aspen.DB
 }
 
 func (b *Builder) Dir() string {
@@ -27,13 +36,30 @@ func (b *Builder) Dir() string {
 	return b.tmpDir
 }
 
+func (b *Builder) AddressFactory() *address.Factory {
+	if b.addressFactory == nil {
+		b.addressFactory = address.NewLocalFactory(b.PortRangeStart)
+	}
+	return b.addressFactory
+}
+
 func (b *Builder) New(opts ...aspen.Option) (aspen.DB, error) {
 	dir := filepath.Join(b.Dir(), strconv.Itoa(len(b.peerAddresses)))
-	addr := address.Address("localhost:" + strconv.Itoa(b.PortRangeStart+len(b.peerAddresses)))
-	if len(b.peerAddresses) == 0 {
+	if len(b.Contexts) == 0 {
 		opts = append(opts, aspen.Bootstrap())
 	}
-	return aspen.Open(dir, addr, b.peerAddresses, append(b.DefaultOptions, opts...)...)
+	addr := b.AddressFactory().Next()
+	db, err := aspen.Open(dir, addr, b.peerAddresses, append(b.DefaultOptions, opts...)...)
+	if err != nil {
+		return nil, err
+	}
+	b.Contexts[db.HostID()] = Context{
+		Addr: addr,
+		Dir:  dir,
+		DB:   db,
+	}
+	b.peerAddresses = append(b.peerAddresses, addr)
+	return db, nil
 }
 
 func (b *Builder) Cleanup() error { return os.RemoveAll(b.Dir()) }

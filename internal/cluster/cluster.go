@@ -21,9 +21,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// State represents the current state of the cluster as seen from the host node.
 type State = store.State
 
-var ErrNodeNotFound = errors.New("[cluster] - node not found")
+// ErrNotFound is returned when a node cannot be found in the cluster.
+var ErrNotFound = errors.New("[cluster] - node not found")
 
 // Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
@@ -31,7 +33,8 @@ type Cluster interface {
 	Host() node.Node
 	// HostID returns the ID of the host node.
 	HostID() node.ID
-	// Nodes returns a node.Group of all nodes in the cluster.
+	// Nodes returns a node.Group of all nodes in the cluster. The returned map is not safe to modify. To modify,
+	// use node.Group.Copy().
 	Nodes() node.Group
 	// Node returns the member Node with the given ID.
 	Node(id node.ID) (node.Node, error)
@@ -39,8 +42,8 @@ type Cluster interface {
 	Resolve(id node.ID) (address.Address, error)
 	// Config returns the configuration parameters used by the cluster.
 	Config() Config
-	// Reader returns a copy of the current cluster state. This snapshot is safe
-	// to modify, but is not guaranteed to remain up to date.
+	// Reader returns can be used to access the cluster state. When using ReadState, be careful not to modify the
+	// contents of the returned State.
 	xstore.Reader[State]
 }
 
@@ -65,12 +68,14 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 
 	c := &cluster{Store: s, cfg: cfg}
 
+	// We need to open the gossip service before we can join the cluster in order to prevent issues with incoming
+	// requests receiving a nil transport handler.
 	g, err := gossip.New(s, c.cfg.Gossip)
 	if err != nil {
 		return nil, err
 	}
 
-	// If our store is empty or invalid, we need to boostrap the cluster.
+	// If our store is empty or invalid and peers were provided, attempt to join the cluster.
 	if !s.Valid() && len(peers) != 0 {
 		cfg.Logger.Info("no existing cluster found in storage. pledging to cluster instead.")
 		id, err := pledge(ctx, peers, c)
@@ -85,21 +90,29 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 			return c, err
 		}
 	} else if !s.Valid() && len(peers) == 0 {
+		// If our store isn't valid, and we haven't received peers, assume we're bootstrapping a new cluster.
 		c.Store.SetHost(node.Node{ID: 1, Address: addr})
 		cfg.Logger.Info("no peers provided, bootstrapping new cluster")
 		if err := pledge_.Arbitrate(c.Nodes, c.cfg.Pledge); err != nil {
 			return c, err
 		}
 	} else {
+		// If our store is valid, restart using the existing state.
 		cfg.Logger.Info("existing cluster found in storage. restarting activities.")
+
+		host := c.Store.GetHost()
+		host.Heartbeat = host.Heartbeat.Restart()
+		c.Store.Set(host)
+
 		if err := pledge_.Arbitrate(c.Nodes, c.cfg.Pledge); err != nil {
 			return nil, err
 		}
 	}
 
-	g.Gossip(ctx)
+	// After we've successfully pledged, we can start gossiping cluster state.
+	g.GoGossip(ctx)
 
-	flushStore(cfg, s)
+	goFlushStore(cfg, s)
 
 	return c, nil
 }
@@ -109,27 +122,31 @@ type cluster struct {
 	store.Store
 }
 
-func (c *cluster) GetState() State { return c.Store.CopyState() }
-
+// Host implements the Cluster interface.
 func (c *cluster) Host() node.Node { return c.Store.GetHost() }
 
+// HostID implements the Cluster interface.
 func (c *cluster) HostID() node.ID { return c.Store.ReadState().HostID }
 
-func (c *cluster) Nodes() node.Group { return c.GetState().Nodes }
+// Nodes implements the Cluster interface.
+func (c *cluster) Nodes() node.Group { return c.Store.ReadState().Nodes }
 
+// Node implements the Cluster interface.
 func (c *cluster) Node(id node.ID) (node.Node, error) {
 	n, ok := c.Store.Get(id)
 	if !ok {
-		return n, ErrNodeNotFound
+		return n, ErrNotFound
 	}
 	return n, nil
 }
 
+// Resolve implements the Cluster interface.
 func (c *cluster) Resolve(id node.ID) (address.Address, error) {
 	n, err := c.Node(id)
 	return n.Address, err
 }
 
+// Config implements the Cluster interface.
 func (c *cluster) Config() Config { return c.cfg }
 
 func openStore(cfg Config) (store.Store, error) {
@@ -167,16 +184,16 @@ func gossipInitialState(
 	return nil
 }
 
-func flushStore(cfg Config, s store.Store) {
+func goFlushStore(cfg Config, s store.Store) {
 	errC := make(chan error, 5)
 	if cfg.Storage != nil {
-		flusher := &observe.FlushSubscriber[State]{
+		flush := &observe.FlushSubscriber[State]{
 			Key:         cfg.StorageKey,
 			MinInterval: cfg.StorageFlushInterval,
 			Store:       cfg.Storage,
 			ErrC:        errC,
 		}
-		s.OnChange(flusher.Flush)
+		s.OnChange(flush.Flush)
 		cfg.Shutdown.Go(func(sig chan shutdown.Signal) error {
 			for {
 				select {

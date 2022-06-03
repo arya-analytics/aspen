@@ -18,13 +18,13 @@ var _ = Describe("Open", func() {
 		exp    alamos.Experiment
 	)
 	BeforeEach(func() {
-		log, _ := zap.NewDevelopment()
+		log := zap.NewNop()
 		logger = log.Sugar()
 		exp = alamos.New("aspen_join_test")
 		var err error
 		db1, err = aspen.Open(
 			"",
-			"localhost:22546",
+			"localhost:22646",
 			[]address.Address{},
 			aspen.Bootstrap(),
 			aspen.WithLogger(logger),
@@ -34,8 +34,8 @@ var _ = Describe("Open", func() {
 		Expect(err).ToNot(HaveOccurred())
 		db2, err = aspen.Open(
 			"",
-			"localhost:22547",
-			[]address.Address{"localhost:22546"},
+			"localhost:22647",
+			[]address.Address{"localhost:22646"},
 			aspen.WithLogger(logger),
 			aspen.WithExperiment(alamos.Sub(exp, "db2")),
 			aspen.MemBacked(),

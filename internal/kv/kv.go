@@ -1,6 +1,7 @@
 package kv
 
 import (
+	"fmt"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
@@ -37,6 +38,8 @@ type KV interface {
 	// store or the network. It simply shuts down all distribution processes that this package runs.
 	// The underlying store (Config.Engine) must be closed by the caller.
 	Closer
+	// Stringer returns a description of the KV store.
+	fmt.Stringer
 }
 
 type kv struct {
@@ -57,6 +60,10 @@ func (k *kv) Set(key []byte, value []byte) error {
 
 // Delete implements KV.
 func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
+
+func (k *kv) String() string {
+	return fmt.Sprintf("aspen.kv{} backed by %s", k.Config.Engine)
+}
 
 const (
 	versionFilterAddr     = "versionFilter"

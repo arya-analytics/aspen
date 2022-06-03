@@ -64,7 +64,7 @@ func Pledge(ctx context.Context, peers []address.Address, candidates func() node
 
 	nextAddr := iter.InfiniteSlice(cfg.peerAddresses)
 
-	t := xtime.NewScaledTicker(cfg.PledgeBaseRetry, cfg.PledgeRetryScale)
+	t := xtime.NewScaledTicker(cfg.RetryInterval, cfg.RetryScale)
 	defer t.Stop()
 
 	for dur := range t.C {

@@ -398,9 +398,9 @@ var file_v1_cluster_proto_depIdxs = []int32{
 	6, // 3: aspen.v1.ClusterGossip.nodes:type_name -> aspen.v1.ClusterGossip.NodesEntry
 	2, // 4: aspen.v1.ClusterGossip.DigestsEntry.value:type_name -> aspen.v1.NodeDigest
 	0, // 5: aspen.v1.ClusterGossip.NodesEntry.value:type_name -> aspen.v1.Node
-	3, // 6: aspen.v1.ClusterGossipService.Gossip:input_type -> aspen.v1.ClusterGossip
+	3, // 6: aspen.v1.ClusterGossipService.GoGossip:input_type -> aspen.v1.ClusterGossip
 	4, // 7: aspen.v1.PledgeService.Pledge:input_type -> aspen.v1.ClusterPledge
-	3, // 8: aspen.v1.ClusterGossipService.Gossip:output_type -> aspen.v1.ClusterGossip
+	3, // 8: aspen.v1.ClusterGossipService.GoGossip:output_type -> aspen.v1.ClusterGossip
 	4, // 9: aspen.v1.PledgeService.Pledge:output_type -> aspen.v1.ClusterPledge
 	8, // [8:10] is the sub-list for method output_type
 	6, // [6:8] is the sub-list for method input_type

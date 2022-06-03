@@ -14,5 +14,5 @@ var (
 
 func TestGossip(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Gossip Suite")
+	RunSpecs(t, "GoGossip Suite")
 }

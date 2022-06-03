@@ -49,10 +49,10 @@ var _ = Describe("Node", func() {
 					addresses,
 					func() (g node.Group) { return g },
 					pledge.Config{
-						RequestTimeout:   1 * time.Millisecond,
-						Transport:        t1,
-						PledgeRetryScale: 2,
-						PledgeBaseRetry:  2 * time.Millisecond,
+						RequestTimeout: 1 * time.Millisecond,
+						Transport:      t1,
+						RetryScale:     2,
+						RetryInterval:  2 * time.Millisecond,
 					},
 				)
 				Expect(err).To(Equal(context.DeadlineExceeded))

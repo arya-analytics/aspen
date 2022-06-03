@@ -16,6 +16,7 @@ type Gossip struct {
 	store store.Store
 }
 
+// New opens a new Gossip that will spread cluster state to and from the given store.
 func New(store store.Store, cfg Config) (*Gossip, error) {
 	cfg = cfg.Merge(DefaultConfig())
 	if err := cfg.Validate(); err != nil {
@@ -27,7 +28,8 @@ func New(store store.Store, cfg Config) (*Gossip, error) {
 	return g, nil
 }
 
-func (g *Gossip) Gossip(ctx context.Context) <-chan error {
+// GoGossip starts a goroutine that gossips at Config.Interval.
+func (g *Gossip) GoGossip(ctx context.Context) <-chan error {
 	errC := make(chan error)
 	g.Shutdown.GoTick(
 		g.Interval,

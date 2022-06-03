@@ -31,7 +31,7 @@ func NewClusterGossipServiceClient(cc grpc.ClientConnInterface) ClusterGossipSer
 
 func (c *clusterGossipServiceClient) Gossip(ctx context.Context, in *ClusterGossip, opts ...grpc.CallOption) (*ClusterGossip, error) {
 	out := new(ClusterGossip)
-	err := c.cc.Invoke(ctx, "/aspen.v1.ClusterGossipService/Gossip", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/aspen.v1.ClusterGossipService/GoGossip", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ type UnimplementedClusterGossipServiceServer struct {
 }
 
 func (UnimplementedClusterGossipServiceServer) Gossip(context.Context, *ClusterGossip) (*ClusterGossip, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Gossip not implemented")
+	return nil, status.Errorf(codes.Unimplemented, "method GoGossip not implemented")
 }
 
 // UnsafeClusterGossipServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -74,7 +74,7 @@ func _ClusterGossipService_Gossip_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/aspen.v1.ClusterGossipService/Gossip",
+		FullMethod: "/aspen.v1.ClusterGossipService/GoGossip",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ClusterGossipServiceServer).Gossip(ctx, req.(*ClusterGossip))
@@ -90,7 +90,7 @@ var ClusterGossipService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ClusterGossipServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Gossip",
+			MethodName: "GoGossip",
 			Handler:    _ClusterGossipService_Gossip_Handler,
 		},
 	},
