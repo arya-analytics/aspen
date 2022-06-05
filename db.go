@@ -9,12 +9,13 @@ import (
 )
 
 type (
-	Cluster = cluster.Cluster
-	Node    = node.Node
-	ID      = node.ID
-	KV      = kv.KV
-	Address = address.Address
-	State   = node.State
+	Cluster      = cluster.Cluster
+	Node         = node.Node
+	ID           = node.ID
+	KV           = kv.KV
+	Address      = address.Address
+	NodeState    = node.State
+	ClusterState = cluster.State
 )
 
 const (
