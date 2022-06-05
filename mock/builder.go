@@ -13,10 +13,10 @@ type Builder struct {
 	DataDir        string
 	DefaultOptions []aspen.Option
 	peerAddresses  []address.Address
-	TmpDirs        map[aspen.ID]string
+	TmpDirs        map[aspen.NodeID]string
 	tmpDir         string
 	addressFactory *address.Factory
-	Contexts       map[aspen.ID]Context
+	Contexts       map[aspen.NodeID]Context
 }
 
 type Context struct {

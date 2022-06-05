@@ -11,7 +11,7 @@ import (
 type (
 	Cluster      = cluster.Cluster
 	Node         = node.Node
-	ID           = node.ID
+	NodeID       = node.ID
 	KV           = kv.KV
 	Address      = address.Address
 	NodeState    = node.State

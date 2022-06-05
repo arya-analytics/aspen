@@ -4,7 +4,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/kv/memkv"
 	"github.com/arya-analytics/x/version"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -86,7 +86,7 @@ var _ = Describe("Store", func() {
 	Describe("Flush and Load", func() {
 
 		It("Should correctly sync the store's state to storage", func() {
-			kve := kvmock.New()
+			kve := memkv.Open()
 			s.SetHost(node.Node{ID: 1})
 			s.Set(node.Node{ID: 2})
 			Expect(kv.Flush(kve, []byte("key"), s)).To(Succeed())

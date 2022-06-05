@@ -6,8 +6,6 @@ import (
 	"github.com/arya-analytics/aspen/mock"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
 	"sync"
 	"time"
@@ -36,7 +34,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 			By("Opening without error")
 			Expect(err).ToNot(HaveOccurred())
 
-			By("Assigning a valid ID of 1")
+			By("Assigning a valid NodeID of 1")
 			Expect(db.HostID()).To(Equal(node.ID(1)))
 
 			By("Adding itself to the node list")
@@ -62,7 +60,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 			By("Opening without error")
 			Expect(err).ToNot(HaveOccurred())
 
-			By("Assigning a valid ID of 1")
+			By("Assigning a valid NodeID of 1")
 			Expect(db.HostID()).To(Equal(node.ID(1)))
 		})
 
@@ -84,7 +82,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 				By("Joining the second node to the cluster without error")
 				Expect(err).ToNot(HaveOccurred())
 
-				By("Assigning a unique ID of 2")
+				By("Assigning a unique NodeID of 2")
 				Expect(db.HostID()).To(Equal(node.ID(2)))
 			}()
 			db, err := aspen.Open(
@@ -99,7 +97,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 			By("Joining the first node to the cluster without error")
 			Expect(err).ToNot(HaveOccurred())
 
-			By("Assigning a unique ID of 1")
+			By("Assigning a unique NodeID of 1")
 			Expect(db.HostID()).To(Equal(node.ID(1)))
 			wg.Wait()
 
@@ -137,7 +135,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 			}
 			wg.Wait()
 
-			By("Assigning a unique ID to each node")
+			By("Assigning a unique NodeID to each node")
 			Expect(len(filter.Duplicates(ids))).To(Equal(len(ids)))
 
 			By("Safely closing the database")
@@ -161,7 +159,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 						PortRangeStart: 22546,
 						DataDir:        "./testdata",
 						DefaultOptions: []aspen.Option{aspen.WithLogger(logger), aspen.WithPropagationConfig(propConfig)},
-						Contexts:       make(map[aspen.ID]mock.Context),
+						Contexts:       make(map[aspen.NodeID]mock.Context),
 					}
 
 					By("Forking the databases")
@@ -181,7 +179,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 					db, err := aspen.Open(ctx.Dir, ctx.Addr, []aspen.Address{}, builder.DefaultOptions...)
 					Expect(err).ToNot(HaveOccurred())
 
-					By("Assigning the correct ID")
+					By("Assigning the correct NodeID")
 					Expect(db.HostID()).To(Equal(node.ID(2)))
 
 					By("Incrementing the heartbeat generation")
