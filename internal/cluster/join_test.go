@@ -6,7 +6,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/kv/memkv"
 	"github.com/arya-analytics/x/shutdown"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	. "github.com/onsi/ginkgo/v2"
@@ -51,7 +51,7 @@ var _ = Describe("Join", func() {
 					Interval:  100 * time.Millisecond,
 					Shutdown:  sd,
 				},
-				Storage: kvmock.New(),
+				Storage: memkv.Open(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -76,7 +76,7 @@ var _ = Describe("Join", func() {
 					Interval:  100 * time.Millisecond,
 					Shutdown:  sd,
 				},
-				Storage: kvmock.New(),
+				Storage: memkv.Open(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())

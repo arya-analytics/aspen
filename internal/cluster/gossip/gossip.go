@@ -43,7 +43,7 @@ func (g *Gossip) GoGossip(ctx context.Context) <-chan error {
 func (g *Gossip) GossipOnce(ctx context.Context) error {
 	g.incrementHostHeartbeat()
 	snap := g.store.CopyState()
-	peer := RandomPeer(snap)
+	peer := RandomPeer(snap.Nodes, snap.HostID)
 	if peer.Address == "" {
 		g.Logger.Warn("no healthy nodes ")
 		return nil
@@ -136,6 +136,6 @@ func (g *Gossip) ack2(ack2 Message) {
 	g.store.Merge(ack2.Nodes)
 }
 
-func RandomPeer(snap store.State) node.Node {
-	return rand.MapValue(snap.Nodes.WhereState(node.StateHealthy).WhereNot(snap.HostID))
+func RandomPeer(nodes node.Group, host node.ID) node.Node {
+	return rand.MapValue(nodes.WhereState(node.StateHealthy).WhereNot(host))
 }

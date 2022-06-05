@@ -13,7 +13,7 @@ import (
 
 var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
 
-const DefaultLeaseholder = 0
+const DefaultLeaseholder node.ID = 0
 
 type leaseAssigner struct {
 	Config

@@ -7,6 +7,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/shutdown"
+	"github.com/cockroachdb/errors"
 )
 
 // Writer is a writable key-value store.
@@ -54,8 +55,16 @@ func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
 }
 
 // Set implements KV.
-func (k *kv) Set(key []byte, value []byte) error {
-	return k.SetWithLease(key, DefaultLeaseholder, value)
+func (k *kv) Set(key []byte, value []byte, opts ...interface{}) error {
+	lease := DefaultLeaseholder
+	if len(opts) == 1 {
+		l, ok := opts[0].(node.ID)
+		if !ok {
+			return errors.New("[aspen] - leaseholder option must be of type node.ID")
+		}
+		lease = l
+	}
+	return k.SetWithLease(key, lease, value)
 }
 
 // Delete implements KV.

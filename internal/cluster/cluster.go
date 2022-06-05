@@ -16,7 +16,6 @@ import (
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/observe"
 	"github.com/arya-analytics/x/shutdown"
-	xstore "github.com/arya-analytics/x/store"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 )
@@ -42,9 +41,9 @@ type Cluster interface {
 	Resolve(id node.ID) (address.Address, error)
 	// Config returns the configuration parameters used by the cluster.
 	Config() Config
-	// Reader returns can be used to access the cluster state. When using ReadState, be careful not to modify the
+	// Observable returns can be used to monitor changes to the cluster state. Be careful not to modify the
 	// contents of the returned State.
-	xstore.Reader[State]
+	observe.Observable[State]
 }
 
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening

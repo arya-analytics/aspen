@@ -42,20 +42,20 @@ func (g *operationSender) send(ctx confluence.Context, b batch) (batch, bool) {
 		return batch{}, false
 	}
 
-	s := g.Cluster.ReadState()
-	peer := gossip.RandomPeer(s)
+	hostID := g.Cluster.HostID()
+	peer := gossip.RandomPeer(g.Cluster.Nodes(), hostID)
 	if peer.Address == "" {
-		g.Logger.Warnw("no healthy nodes to gossip with", "host", s.HostID)
+		g.Logger.Warnw("no healthy nodes to gossip with", "host", hostID)
 		return batch{}, false
 	}
 
 	g.Logger.Debugw("gossiping operations",
-		"host", s.HostID,
+		"host", hostID,
 		"peer", peer.ID,
 		"count", len(b.operations),
 	)
 
-	sync := OperationMessage{Operations: b.operations, Sender: s.HostID}
+	sync := OperationMessage{Operations: b.operations, Sender: hostID}
 	ack, err := g.OperationsTransport.Send(ctx.Ctx, peer.Address, sync)
 	if err != nil {
 		ctx.ErrC <- errors.Wrap(err, "[kv] - failed to gossip operations")

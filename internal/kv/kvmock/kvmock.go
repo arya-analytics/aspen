@@ -5,7 +5,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/clustermock"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/internal/node"
-	"github.com/arya-analytics/x/kv/kvmock"
+	"github.com/arya-analytics/x/kv/memkv"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	"go/types"
 )
@@ -37,7 +37,7 @@ func (b *Builder) New(kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV, error)
 	}
 	kvCfg = kvCfg.Merge(b.BaseCfg)
 	if kvCfg.Engine == nil {
-		kvCfg.Engine = kvmock.New()
+		kvCfg.Engine = memkv.Open()
 	}
 	kvCfg.Cluster = clust
 	addr := clust.Host().Address
