@@ -7,4 +7,3 @@
 
 # Aspen
 
-Location aware peer to peer network that implements the gossip protocol.

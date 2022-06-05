@@ -1,76 +1,149 @@
 package node_test
 
 import (
-	"github.com/arya-analytics/aspen/internal/address"
+	"bytes"
 	"github.com/arya-analytics/aspen/internal/node"
+	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/version"
 	. "github.com/onsi/ginkgo/v2"
-	log "github.com/sirupsen/logrus"
-	"time"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Node", func() {
-	It("Should gossip correctly", func() {
-		router := node.Router{Transports: make(map[address.Address]*node.SyncTransport)}
 
-		node1Addr := address.Address("localhost:1234")
-		node2Addr := address.Address("localhost:1235")
-		node3Addr := address.Address("localhost:1236")
+	Describe("Flush", func() {
 
-		node1 := node.Node{
-			ID:      1,
-			Address: node1Addr,
-		}
-		node2 := node.Node{
-			ID:      2,
-			Address: node2Addr,
-		}
-		node3 := node.Node{
-			ID:      3,
-			Address: node3Addr,
-		}
-
-		node1Gossip := node.Gossip{
-			PeerAddresses: []address.Address{node2Addr},
-			NodeID:        node1.ID,
-			Nodes:         node.Nodes{node1.ID: node1},
-			Transport:     router.New(node1.Address),
-		}
-		node2Gossip := node.Gossip{
-			PeerAddresses: []address.Address{node3Addr},
-			NodeID:        node2.ID,
-			Nodes:         node.Nodes{node2.ID: node2},
-			Transport:     router.New(node2.Address),
-		}
-		node3Gossip := node.Gossip{
-			PeerAddresses: []address.Address{node1Addr},
-			NodeID:        node3.ID,
-			Nodes:         node.Nodes{node3.ID: node3},
-			Transport:     router.New(node3.Address),
-		}
-
-		log.Info("INITIAL STATE NODE 2", node2Gossip.Nodes)
-		log.Info("INITIAL STATE NODE 1", node1Gossip.Nodes)
-		log.Info("INITIAL STATE NODE 3", node3Gossip.Nodes)
-
-		errc := node1Gossip.Gossip()
-		errC2 := node2Gossip.Gossip()
-		errC3 := node3Gossip.Gossip()
-
-		go func() {
-			select {
-			case err := <-errc:
-				log.Error(err)
-			case err := <-errC2:
-				log.Error(err)
-			case err := <-errC3:
-				log.Error(err)
+		It("Should correctly flush the node to binary", func() {
+			n := node.Node{
+				ID:      1,
+				Address: address.Address("localhost:1"),
+				State:   node.StateHealthy,
+				Heartbeat: version.Heartbeat{
+					Generation: 1,
+					Version:    1,
+				},
 			}
-		}()
+			b := bytes.NewBuffer([]byte{})
+			err := n.Flush(b)
+			Expect(err).ToNot(HaveOccurred())
+			nn := &node.Node{}
+			err = nn.Load(b)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(nn.ID).To(Equal(node.ID(1)))
+		})
 
-		time.Sleep(500 * time.Millisecond)
-
-		log.Info("FINAL STATE NODE 2", node2Gossip.Nodes)
-		log.Info("FINAL STATE NODE 1", node1Gossip.Nodes)
-		log.Info("FINAL STATE NODE 3", node3Gossip.Nodes)
 	})
+
+	Describe("Group", func() {
+
+		Describe("Filter", func() {
+
+			It("Should filter nodes correctly", func() {
+				g := node.Group{
+					1: node.Node{
+						ID:    1,
+						State: node.StateHealthy,
+					},
+					2: node.Node{
+						ID:    2,
+						State: node.StateSuspect,
+					},
+				}
+				Expect(g.WhereState(node.StateHealthy)).To(HaveLen(1))
+				Expect(g.WhereActive()).To(HaveLen(2))
+				Expect(g.WhereNot(1)).To(HaveLen(1))
+			})
+
+		})
+
+		Describe("Addresses", func() {
+
+			It("Should return the addresses of the nodes in the cluster", func() {
+				g := node.Group{
+					1: node.Node{
+						ID:      1,
+						State:   node.StateHealthy,
+						Address: "localhost:0",
+					},
+					2: node.Node{
+						ID:      2,
+						State:   node.StateSuspect,
+						Address: "localhost:1",
+					},
+				}
+				for _, addr := range g.Addresses() {
+					Expect(addr).To(BeElementOf([]address.Address{"localhost:0", "localhost:1"}))
+				}
+			})
+
+		})
+
+		Describe("Digests", func() {
+
+			It("Should return the digests of the nodes", func() {
+				g := node.Group{
+					1: node.Node{
+						ID:    1,
+						State: node.StateHealthy,
+						Heartbeat: version.Heartbeat{
+							Version:    1,
+							Generation: 1,
+						},
+					},
+					2: node.Node{
+						ID:      2,
+						State:   node.StateSuspect,
+						Address: "localhost:1",
+						Heartbeat: version.Heartbeat{
+							Version:    2,
+							Generation: 2,
+						},
+					},
+				}
+				Expect(g.Digests()).To(HaveLen(2))
+				Expect(g.Digests()[1]).To(Equal(g[1].Digest()))
+			})
+
+		})
+
+	})
+
+	Describe("Copy", func() {
+
+		It("Should copy a group of nodes", func() {
+			g := node.Group{
+				1: node.Node{
+					ID:    1,
+					State: node.StateHealthy,
+					Heartbeat: version.Heartbeat{
+						Version:    1,
+						Generation: 1,
+					},
+				},
+				2: node.Node{
+					ID:      2,
+					State:   node.StateSuspect,
+					Address: "localhost:1",
+					Heartbeat: version.Heartbeat{
+						Version:    2,
+						Generation: 2,
+					},
+				},
+			}
+			g2 := g.Copy()
+			delete(g2, 1)
+			Expect(g2).To(HaveLen(1))
+			Expect(g).To(HaveLen(2))
+		})
+
+	})
+
+	Describe("Stringer", func() {
+
+		It("Should stringify a nodes id", func() {
+			Expect(node.ID(1).String()).To(Equal("Node 1"))
+		})
+
+	})
+
 })
