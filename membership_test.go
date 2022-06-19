@@ -160,8 +160,11 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 					builder := &mock.Builder{
 						PortRangeStart: 22546,
 						DataDir:        "./testdata",
-						DefaultOptions: []aspen.Option{aspen.WithLogger(logger), aspen.WithPropagationConfig(propConfig)},
-						Contexts:       make(map[aspen.NodeID]mock.Context),
+						DefaultOptions: []aspen.Option{
+							aspen.WithLogger(logger),
+							aspen.WithPropagationConfig(propConfig),
+						},
+						Contexts: make(map[aspen.NodeID]mock.Context),
 					}
 
 					By("Forking the databases")

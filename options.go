@@ -115,6 +115,13 @@ func WithPropagationConfig(config PropagationConfig) Option {
 	}
 }
 
+// WithTransport sets a custom network transport.
+func WithTransport(transport Transport) Option {
+	return func(o *options) {
+		o.transport = transport
+	}
+}
+
 func newOptions(dirname string, addr address.Address, peers []address.Address, opts ...Option) *options {
 	o := &options{}
 	o.dirname = dirname
@@ -166,11 +173,6 @@ func mergeDefaultOptions(o *options) {
 	if o.transport == nil {
 		o.transport = def.transport
 	}
-	o.cluster.Gossip.Transport = o.transport.Cluster()
-	o.cluster.Pledge.Transport = o.transport.Pledge()
-	o.kv.OperationsTransport = o.transport.Operations()
-	o.kv.LeaseTransport = o.transport.Lease()
-	o.kv.FeedbackTransport = o.transport.Feedback()
 
 	// |||| LOGGER ||||
 

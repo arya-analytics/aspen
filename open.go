@@ -15,7 +15,7 @@ func Open(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
+	if err := configureTransport(o); err != nil {
 		return nil, err
 	}
 
@@ -41,5 +41,17 @@ func openKV(opts *options) error {
 		opts.cluster.Storage = opts.kv.Engine
 		return err
 	}
+	return nil
+}
+
+func configureTransport(o *options) error {
+	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
+		return err
+	}
+	o.cluster.Gossip.Transport = o.transport.Cluster()
+	o.cluster.Pledge.Transport = o.transport.Pledge()
+	o.kv.OperationsTransport = o.transport.Operations()
+	o.kv.LeaseTransport = o.transport.Lease()
+	o.kv.FeedbackTransport = o.transport.Feedback()
 	return nil
 }
