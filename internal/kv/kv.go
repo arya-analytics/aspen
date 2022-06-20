@@ -51,7 +51,10 @@ type kv struct {
 
 // SetWithLease implements KV.
 func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
-	return k.exec.setWithLease(key, leaseholder, value)
+	_key, _value := make([]byte, len(key)), make([]byte, len(value))
+	copy(_key, key)
+	copy(_value, value)
+	return k.exec.setWithLease(_key, leaseholder, _value)
 }
 
 // Set implements KV.
@@ -70,6 +73,7 @@ func (k *kv) Set(key []byte, value []byte, opts ...interface{}) error {
 // Delete implements KV.
 func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
 
+// String implements KV.
 func (k *kv) String() string {
 	return fmt.Sprintf("aspen.kv{} backed by %s", k.Config.Engine)
 }
