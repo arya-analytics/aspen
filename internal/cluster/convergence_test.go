@@ -76,8 +76,8 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 				)
 				subExp := alamos.Sub(exp, fmt.Sprintf("convergence_test_%v", i))
 				for i := 0; i < values.clusterSize; i++ {
-					gossipT := gossipNet.Route("")
-					pledgeT := pledgeNet.Route(gossipT.Address)
+					gossipT := gossipNet.RouteUnary("")
+					pledgeT := pledgeNet.RouteUnary(gossipT.Address)
 					cluster, err := cluster.Join(
 						ctx,
 						gossipT.Address,

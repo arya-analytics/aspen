@@ -44,11 +44,11 @@ type transport struct {
 
 // Configure implements aspen.Transport.
 func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error {
-	t.pledge = t.net.pledge.Route(addr)
-	t.cluster = t.net.cluster.Route(addr)
-	t.operations = t.net.operations.Route(addr)
-	t.lease = t.net.lease.Route(addr)
-	t.feedback = t.net.feedback.Route(addr)
+	t.pledge = t.net.pledge.RouteUnary(addr)
+	t.cluster = t.net.cluster.RouteUnary(addr)
+	t.operations = t.net.operations.RouteUnary(addr)
+	t.lease = t.net.lease.RouteUnary(addr)
+	t.feedback = t.net.feedback.RouteUnary(addr)
 	return nil
 }
 

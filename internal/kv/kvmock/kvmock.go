@@ -41,9 +41,9 @@ func (b *Builder) New(kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV, error)
 	}
 	kvCfg.Cluster = clust
 	addr := clust.Host().Address
-	kvCfg.OperationsTransport = b.OpNet.Route(addr)
-	kvCfg.FeedbackTransport = b.FeedbackNet.Route(addr)
-	kvCfg.LeaseTransport = b.LeaseNet.Route(addr)
+	kvCfg.OperationsTransport = b.OpNet.RouteUnary(addr)
+	kvCfg.FeedbackTransport = b.FeedbackNet.RouteUnary(addr)
+	kvCfg.LeaseTransport = b.LeaseNet.RouteUnary(addr)
 	kve, err := kv.Open(kvCfg)
 	if err != nil {
 		return nil, err

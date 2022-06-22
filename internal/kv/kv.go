@@ -15,7 +15,8 @@ type Writer interface {
 	// SetWithLease is similar to Set, but also takes an id for a leaseholder node.
 	// If the leaseholder node is not the host, the request will be forwarded to the
 	// leaseholder for execution. Only the leaseholder node will be able to perform
-	// set and delete operations on the requested key.
+	// set and delete operations on the requested key. It is safe to modify the contents
+	// of key and value after SetWithLease returns.
 	SetWithLease(key []byte, leaseholder node.ID, value []byte) error
 	// Writer represents the same interface to a typical key-value store.
 	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
@@ -51,10 +52,7 @@ type kv struct {
 
 // SetWithLease implements KV.
 func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
-	_key, _value := make([]byte, len(key)), make([]byte, len(value))
-	copy(_key, key)
-	copy(_value, value)
-	return k.exec.setWithLease(_key, leaseholder, _value)
+	return k.exec.setWithLease(key, leaseholder, value)
 }
 
 // Set implements KV.
@@ -200,4 +198,11 @@ func Open(cfg Config) (KV, error) {
 	pipeline.Flow(ctx)
 
 	return &kv{Config: cfg, KV: cfg.Engine, exec: exec}, builder.Error()
+}
+
+func copyKeyAndValue(key, value []byte) ([]byte, []byte) {
+	_key, _value := make([]byte, len(key)), make([]byte, len(value))
+	copy(_key, key)
+	copy(_value, value)
+	return _key, _value
 }

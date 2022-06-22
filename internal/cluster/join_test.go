@@ -32,8 +32,8 @@ var _ = Describe("Join", func() {
 	It("Should correctly join the cluster", func() {
 
 		By("Initializing the cluster correctly")
-		gossipT1 := gossipNet.Route("")
-		pledgeT1 := pledgeNet.Route(gossipT1.Address)
+		gossipT1 := gossipNet.RouteUnary("")
+		pledgeT1 := pledgeNet.RouteUnary(gossipT1.Address)
 		sd := shutdown.New()
 		clusterOne, err := cluster.Join(
 			ctx,
@@ -58,8 +58,8 @@ var _ = Describe("Join", func() {
 		Expect(clusterOne.Host().ID).To(Equal(node.ID(1)))
 
 		By("Pledging a new node to the cluster")
-		gossipT2 := gossipNet.Route("")
-		pledgeT2 := pledgeNet.Route(gossipT2.Address)
+		gossipT2 := gossipNet.RouteUnary("")
+		pledgeT2 := pledgeNet.RouteUnary(gossipT2.Address)
 		clusterTwo, err := cluster.Join(
 			ctx,
 			gossipT2.Address,

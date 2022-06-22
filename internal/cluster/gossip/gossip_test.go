@@ -32,7 +32,7 @@ var _ = Describe("OperationSender", func() {
 			sd              shut.Shutdown
 		)
 		BeforeEach(func() {
-			t1, t2, t3 = net.Route(""), net.Route(""), net.Route("")
+			t1, t2, t3 = net.RouteUnary(""), net.RouteUnary(""), net.RouteUnary("")
 			nodes = node.Group{1: {ID: 1, Address: t1.Address}, 2: {ID: 2, Address: t2.Address}}
 			sOne = store.New()
 			sOne.SetState(store.State{Nodes: nodes, HostID: 1})

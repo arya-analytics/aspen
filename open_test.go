@@ -10,7 +10,7 @@ import (
 	"os"
 )
 
-var _ = Describe("Open", func() {
+var _ = Describe("RouteStream", func() {
 	var (
 		db1    aspen.DB
 		db2    aspen.DB

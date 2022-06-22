@@ -41,7 +41,7 @@ var _ = Describe("KV", func() {
 		Expect(sd.Shutdown()).To(Succeed())
 	})
 
-	Describe("Open", func() {
+	Describe("RouteStream", func() {
 
 		It("Should open a new KV store without error", func() {
 			kv, err := builder.New(kv.Config{}, cluster.Config{})

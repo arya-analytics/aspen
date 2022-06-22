@@ -35,10 +35,10 @@ var _ = Describe("Node", func() {
 						time.Sleep(2 * time.Millisecond)
 						return 0, ctx.Err()
 					}
-					t1 = net.Route("")
+					t1 = net.RouteUnary("")
 				)
 				for i := 0; i < numTransports; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					t.Handle(handler)
 					addresses = append(addresses, t.Address)
 				}
@@ -58,7 +58,7 @@ var _ = Describe("Node", func() {
 				Expect(err).To(Equal(context.DeadlineExceeded))
 				Expect(id).To(Equal(node.ID(0)))
 				for i, entry := range net.Entries {
-					Expect(entry.Address).To(Equal(addresses[i%4]))
+					Expect(entry.Target).To(Equal(addresses[i%4]))
 				}
 				Expect(len(net.Entries)).To(BeElementOf([]int{3, 4}))
 			})
@@ -71,11 +71,11 @@ var _ = Describe("Node", func() {
 					nodes         = make(node.Group)
 					candidates    = func() node.Group { return nodes }
 					net           = tmock.NewNetwork[node.ID, node.ID]()
-					t1            = net.Route("")
+					t1            = net.RouteUnary("")
 					numCandidates = 10
 				)
 				for i := 0; i < numCandidates; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
@@ -104,10 +104,10 @@ var _ = Describe("Node", func() {
 						})
 					}
 					net = tmock.NewNetwork[node.ID, node.ID]()
-					t1  = net.Route("")
+					t1  = net.RouteUnary("")
 				)
 				for i := 0; i < 10; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					if i != 0 {
 						Expect(pledge.Arbitrate(allCandidates, cfg)).To(Succeed())
@@ -138,10 +138,10 @@ var _ = Describe("Node", func() {
 						return node.Group{10: node.Node{ID: 10, Address: "localhost:10", State: node.StateHealthy}}
 					}
 					net = tmock.NewNetwork[node.ID, node.ID]()
-					t1  = net.Route("")
+					t1  = net.RouteUnary("")
 				)
 				for i := 0; i < 10; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					if (i % 2) == 0 {
 						Expect(pledge.Arbitrate(allCandidates, cfg)).To(Succeed())
@@ -169,11 +169,11 @@ var _ = Describe("Node", func() {
 					nodes         = make(node.Group)
 					candidates    = func() node.Group { return nodes }
 					net           = tmock.NewNetwork[node.ID, node.ID]()
-					t1            = net.Route("")
+					t1            = net.RouteUnary("")
 					numCandidates = 10
 				)
 				for i := 0; i < numCandidates; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					var state node.State
 					if (i % 2) == 0 {
 						state = node.StateHealthy
@@ -202,11 +202,11 @@ var _ = Describe("Node", func() {
 					nodes         = make(node.Group)
 					candidates    = func() node.Group { return nodes }
 					net           = tmock.NewNetwork[node.ID, node.ID]()
-					t1            = net.Route("")
+					t1            = net.RouteUnary("")
 					numCandidates = 10
 				)
 				for i := 0; i < numCandidates; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)
@@ -225,12 +225,12 @@ var _ = Describe("Node", func() {
 					nodes         = make(node.Group)
 					candidates    = func() node.Group { return nodes }
 					net           = tmock.NewNetwork[node.ID, node.ID]()
-					t1            = net.Route("")
+					t1            = net.RouteUnary("")
 					numCandidates = 10
 					numPledges    = 4
 				)
 				for i := 0; i < numCandidates; i++ {
-					t := net.Route("")
+					t := net.RouteUnary("")
 					cfg := pledge.Config{Transport: t, Logger: logger}
 					Expect(pledge.Arbitrate(candidates, cfg)).To(Succeed())
 					id := node.ID(i)

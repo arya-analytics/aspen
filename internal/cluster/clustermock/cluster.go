@@ -26,8 +26,8 @@ func NewBuilder(baseCfg cluster.Config) *Builder {
 }
 
 func (b *Builder) New(cfg cluster.Config) (cluster.Cluster, error) {
-	gossipTransport := b.GossipNet.Route("")
-	pledgeTransport := b.PledgeNet.Route(gossipTransport.Address)
+	gossipTransport := b.GossipNet.RouteUnary("")
+	pledgeTransport := b.PledgeNet.RouteUnary(gossipTransport.Address)
 	cfg.Gossip.Transport = gossipTransport
 	cfg.Pledge.Transport = pledgeTransport
 	cfg = cfg.Merge(b.BaseCfg)

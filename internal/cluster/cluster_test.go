@@ -12,7 +12,6 @@ import (
 
 var _ = Describe("Cluster", func() {
 	var builder *clustermock.Builder
-
 	BeforeEach(func() {
 		builder = clustermock.NewBuilder(cluster.Config{
 			Gossip: gossip.Config{Interval: 5 * time.Millisecond},

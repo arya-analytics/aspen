@@ -62,7 +62,7 @@ var _ = Describe("Convergence", func() {
 			group := make(node.Group)
 			configs := make(map[node.ID]gossip.Config)
 			for i := 1; i <= values.nodeCount; i++ {
-				t := net.Route("")
+				t := net.RouteUnary("")
 				n := node.Node{ID: node.ID(i), Address: t.Address}
 				group[n.ID] = n
 				configs[n.ID] = gossip.Config{Transport: t, Logger: logger}
