@@ -2,7 +2,6 @@ package gossip
 
 import (
 	"github.com/arya-analytics/x/alamos"
-	"github.com/arya-analytics/x/shutdown"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"time"
@@ -16,9 +15,6 @@ type Config struct {
 	// Transport is the transport used to exchange gossip between nodes.
 	// [Required]
 	Transport Transport
-	// Shutdown is used to gracefully stop gossip operations.
-	// [Not Required]
-	Shutdown shutdown.Shutdown
 	// Logger is the witness of it all.
 	// [Not Required]
 	Logger *zap.SugaredLogger
@@ -28,9 +24,6 @@ type Config struct {
 }
 
 func (cfg Config) Merge(def Config) Config {
-	if cfg.Shutdown == nil {
-		cfg.Shutdown = def.Shutdown
-	}
 	if cfg.Interval <= 0 {
 		cfg.Interval = def.Interval
 	}
@@ -69,6 +62,5 @@ func DefaultConfig() Config {
 	return Config{
 		Interval: 1 * time.Second,
 		Logger:   zap.NewNop().Sugar(),
-		Shutdown: shutdown.New(),
 	}
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/observe"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 )
@@ -51,7 +51,7 @@ type Cluster interface {
 // for the first time. If restarting a node that is already a member of a cluster, the peer addresses can be left empty;
 // Join will attempt to load the existing cluster state from storage (see Config.Storage and Config.StorageKey).
 // If provisioning a new cluster, ensure that all storage for previous clusters is removed and provide no peers.
-func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
+func Join(ctx signal.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -111,7 +111,8 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 	// After we've successfully pledged, we can start gossiping cluster state.
 	g.GoGossip(ctx)
 
-	goFlushStore(cfg, s)
+	// Periodically persist the cluster state.
+	goFlushStore(ctx, cfg, s)
 
 	return c, nil
 }
@@ -183,25 +184,19 @@ func gossipInitialState(
 	return nil
 }
 
-func goFlushStore(cfg Config, s store.Store) {
-	errC := make(chan error, 5)
+func goFlushStore(ctx signal.Context, cfg Config, s store.Store) {
 	if cfg.Storage != nil {
 		flush := &observe.FlushSubscriber[State]{
+			Errors:      ctx,
 			Key:         cfg.StorageKey,
 			MinInterval: cfg.StorageFlushInterval,
 			Store:       cfg.Storage,
-			ErrC:        errC,
 		}
 		s.OnChange(flush.Flush)
-		cfg.Shutdown.Go(func(sig chan shutdown.Signal) error {
-			for {
-				select {
-				case <-sig:
-					return nil
-				case err := <-errC:
-					cfg.Logger.Error("failed to flush state", zap.Error(err))
-				}
-			}
+		ctx.Go(func() error {
+			<-ctx.Done()
+			flush.Flush(s.CopyState())
+			return ctx.Err()
 		})
 	}
 }

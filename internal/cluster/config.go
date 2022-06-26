@@ -6,7 +6,6 @@ import (
 	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/errutil"
 	"github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/shutdown"
 	"go.uber.org/zap"
 	"time"
 )
@@ -23,8 +22,6 @@ type Config struct {
 	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to FlushOnEvery,
 	// the cluster state will be flushed every time a change is made.
 	StorageFlushInterval time.Duration
-	// Shutdown is used to shut down cluster activities gracefully.
-	Shutdown shutdown.Shutdown
 	// Logger is the witness of it all.
 	Logger *zap.SugaredLogger
 	// Gossip is the configuration for propagating Cluster state through gossip. See the gossip package for more details
@@ -40,9 +37,6 @@ type Config struct {
 func (cfg Config) Merge(def Config) Config {
 	if cfg.Logger == nil {
 		cfg.Logger = def.Logger
-	}
-	if cfg.Shutdown == nil {
-		cfg.Shutdown = def.Shutdown
 	}
 	if cfg.StorageFlushInterval == 0 {
 		cfg.StorageFlushInterval = def.StorageFlushInterval
@@ -61,9 +55,6 @@ func (cfg Config) Merge(def Config) Config {
 
 	if cfg.Gossip.Logger == nil {
 		cfg.Gossip.Logger = cfg.Logger.Named("gossip")
-	}
-	if cfg.Gossip.Shutdown == nil {
-		cfg.Gossip.Shutdown = cfg.Shutdown
 	}
 	if cfg.Gossip.Experiment == nil {
 		cfg.Gossip.Experiment = cfg.Experiment
@@ -101,7 +92,6 @@ func DefaultConfig() Config {
 		StorageKey:           []byte("aspen.cluster"),
 		Logger:               zap.NewNop().Sugar(),
 		Gossip:               gossip.DefaultConfig(),
-		Shutdown:             shutdown.New(),
 		StorageFlushInterval: 1 * time.Second,
 	}
 }

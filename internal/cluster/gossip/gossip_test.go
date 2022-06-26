@@ -4,8 +4,9 @@ import (
 	"context"
 	"github.com/arya-analytics/aspen/internal/cluster/store"
 	"github.com/arya-analytics/aspen/internal/node"
-	shut "github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
+	"github.com/cockroachdb/errors"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
@@ -29,7 +30,8 @@ var _ = Describe("OperationSender", func() {
 			nodes, nodesTwo node.Group
 			sOne            store.Store
 			g1              *gossip.Gossip
-			sd              shut.Shutdown
+			gossipCtx       signal.Context
+			shutdown        context.CancelFunc
 		)
 		BeforeEach(func() {
 			t1, t2, t3 = net.RouteUnary(""), net.RouteUnary(""), net.RouteUnary("")
@@ -40,24 +42,28 @@ var _ = Describe("OperationSender", func() {
 			nodesTwo[3] = node.Node{ID: 3, Address: t3.Address, State: node.StateDead}
 			sTwo := store.New()
 			sTwo.SetState(store.State{Nodes: nodesTwo, HostID: 2})
-			sd = shut.New()
+			gossipCtx, shutdown = signal.WithCancel(ctx)
+			signal.LogTransient(gossipCtx, logger)
 			var err error
-			g1, err = gossip.New(sOne, gossip.Config{Transport: t1, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
+			g1, err = gossip.New(sOne, gossip.Config{Transport: t1, Logger: logger, Interval: 5 * time.Millisecond})
 			Expect(err).ToNot(HaveOccurred())
-			_, err = gossip.New(sTwo, gossip.Config{Transport: t2, Logger: logger, Shutdown: sd, Interval: 5 * time.Millisecond})
+			_, err = gossip.New(sTwo, gossip.Config{Transport: t2, Logger: logger, Interval: 5 * time.Millisecond})
 			Expect(err).ToNot(HaveOccurred())
 		})
 		It("Should converge after a single exchange", func() {
-			Expect(g1.GossipOnce(ctx)).To(Succeed())
+			Expect(g1.GossipOnce(gossipCtx)).To(Succeed())
 			Expect(sOne.CopyState().Nodes).To(HaveLen(3))
 			Expect(sOne.CopyState().Nodes[1].Heartbeat.Version).To(Equal(uint32(1)))
 			Expect(sOne.CopyState().Nodes[3].State).To(Equal(node.StateDead))
 			Expect(sOne.CopyState().Nodes[2].Heartbeat.Version).To(Equal(uint32(0)))
+			shutdown()
+			Expect(errors.Is(gossipCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
 		})
 		It("Should gossip at the correct interval", func() {
-			g1.GoGossip(ctx)
+			g1.GoGossip(gossipCtx)
 			time.Sleep(12 * time.Millisecond)
-			Expect(sd.Shutdown()).To(Succeed())
+			shutdown()
+			Expect(errors.Is(gossipCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
 			Expect(sOne.CopyState().Nodes).To(HaveLen(3))
 			Expect(sOne.CopyState().Nodes[1].Heartbeat.Version).To(Equal(uint32(2)))
 			Expect(sOne.CopyState().Nodes[3].State).To(Equal(node.StateDead))

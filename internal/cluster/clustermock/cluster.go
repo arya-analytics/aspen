@@ -1,11 +1,11 @@
 package clustermock
 
 import (
-	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
 )
 
@@ -25,13 +25,14 @@ func NewBuilder(baseCfg cluster.Config) *Builder {
 	}
 }
 
-func (b *Builder) New(cfg cluster.Config) (cluster.Cluster, error) {
+func (b *Builder) New(ctx signal.Context, cfg cluster.Config) (cluster.Cluster,
+	error) {
 	gossipTransport := b.GossipNet.RouteUnary("")
 	pledgeTransport := b.PledgeNet.RouteUnary(gossipTransport.Address)
 	cfg.Gossip.Transport = gossipTransport
 	cfg.Pledge.Transport = pledgeTransport
 	cfg = cfg.Merge(b.BaseCfg)
-	clust, err := cluster.Join(context.Background(), gossipTransport.Address, b.MemberAddresses(), cfg)
+	clust, err := cluster.Join(ctx, gossipTransport.Address, b.MemberAddresses(), cfg)
 	b.ClusterAPIs[clust.Host().ID] = clust
 	return clust, err
 }

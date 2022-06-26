@@ -7,8 +7,9 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/rand"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
+	"time"
 )
 
 type Gossip struct {
@@ -29,15 +30,17 @@ func New(store store.Store, cfg Config) (*Gossip, error) {
 }
 
 // GoGossip starts a goroutine that gossips at Config.Interval.
-func (g *Gossip) GoGossip(ctx context.Context) <-chan error {
-	errC := make(chan error)
-	g.Shutdown.GoTick(
+func (g *Gossip) GoGossip(ctx signal.Context) {
+	signal.GoTick(
+		ctx,
 		g.Interval,
-		func() error { return g.GossipOnce(ctx) },
-		shutdown.WithContext(ctx),
-		shutdown.WithErrPipe(errC),
+		func(t time.Time) error {
+			if err := g.GossipOnce(ctx); err != nil {
+				ctx.Transient() <- err
+			}
+			return nil
+		},
 	)
-	return errC
 }
 
 func (g *Gossip) GossipOnce(ctx context.Context) error {

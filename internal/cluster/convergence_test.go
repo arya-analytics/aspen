@@ -1,6 +1,7 @@
 package cluster_test
 
 import (
+	"context"
 	"fmt"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
@@ -10,8 +11,9 @@ import (
 	"github.com/arya-analytics/x/alamos"
 	"github.com/arya-analytics/x/kv/memkv"
 	"github.com/arya-analytics/x/rand"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
+	"github.com/cockroachdb/errors"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
@@ -42,11 +44,12 @@ var progressiveNewConvergence = []newConvergenceVars{
 
 var _ = Describe("Convergence", Serial, Ordered, func() {
 	var (
-		gossipNet *tmock.Network[gossip.Message, gossip.Message]
-		pledgeNet *tmock.Network[node.ID, node.ID]
-		logger    *zap.SugaredLogger
-		sd        shutdown.Shutdown
-		exp       alamos.Experiment
+		gossipNet  *tmock.Network[gossip.Message, gossip.Message]
+		pledgeNet  *tmock.Network[node.ID, node.ID]
+		logger     *zap.SugaredLogger
+		exp        alamos.Experiment
+		clusterCtx signal.Context
+		shutdown   context.CancelFunc
 	)
 
 	BeforeAll(func() {
@@ -54,11 +57,12 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 	})
 
 	BeforeEach(func() {
-		sd = shutdown.New()
+		clusterCtx, shutdown = signal.WithCancel(ctx)
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		log := zap.NewNop()
 		logger = log.Sugar()
+		signal.LogTransient(clusterCtx, logger)
 	})
 
 	Context("Serial Pledge", func() {
@@ -79,13 +83,13 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 					gossipT := gossipNet.RouteUnary("")
 					pledgeT := pledgeNet.RouteUnary(gossipT.Address)
 					cluster, err := cluster.Join(
-						ctx,
+						clusterCtx,
 						gossipT.Address,
 						rand.SubSlice[address.Address](addresses, values.peerAddrCount),
 						cluster.Config{
 							Logger:     logger,
 							Pledge:     pledge.Config{Transport: pledgeT, RetryInterval: values.gossipInterval, RetryScale: 1},
-							Gossip:     gossip.Config{Transport: gossipT, Interval: values.gossipInterval, Shutdown: sd},
+							Gossip:     gossip.Config{Transport: gossipT, Interval: values.gossipInterval},
 							Storage:    memkv.Open(),
 							Experiment: alamos.Sub(subExp, fmt.Sprintf("cluster_%v", i)),
 						},
@@ -94,14 +98,16 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 					addresses = append(addresses, gossipT.Address)
 					clusters = append(clusters, cluster)
 				}
-				Expect(sd.ShutdownAfter(values.convergenceThreshold)).To(Succeed())
-				for _, cluster_ := range clusters {
+				time.Sleep(values.convergenceThreshold)
+				shutdown()
+				Expect(errors.Is(clusterCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+				for i, cluster_ := range clusters {
+					Expect(cluster_.HostID()).To(Equal(node.ID(i + 1)))
 					Expect(cluster_.Nodes()).To(HaveLen(values.clusterSize))
 				}
 			})
 
 		})
-
 		p.Construct()
 	})
 })
