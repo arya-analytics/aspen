@@ -6,12 +6,13 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/transport"
 	"github.com/cockroachdb/errors"
 	"go/types"
 )
 
-var ErrLeaseNotTransferable = errors.New("cannot transfer lease")
+var ErrLeaseNotTransferable = errors.New("[kv] - cannot transfer lease")
 
 const DefaultLeaseholder node.ID = 0
 
@@ -26,7 +27,7 @@ func newLeaseAssigner(cfg Config) segment {
 	return la
 }
 
-func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bool) {
+func (la *leaseAssigner) assignLease(ctx signal.Context, b batch) (batch, bool, error) {
 	op := b.single()
 	lh, err := la.getLease(op.Key)
 	if err == nil {
@@ -37,7 +38,7 @@ func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bo
 			// If we get a nil error, that means this key is in the KV store. If the leaseholder doesn't match
 			// the previous leaseholder, we return an error.
 			b.errors <- ErrLeaseNotTransferable
-			return b, false
+			return b, false, nil
 		}
 	} else if err == kv_.ErrNotFound && op.Variant == Set {
 		if op.Leaseholder == DefaultLeaseholder {
@@ -48,10 +49,10 @@ func (la *leaseAssigner) assignLease(ctx confluence.Context, b batch) (batch, bo
 	} else {
 		// For any other case, we return an error.
 		b.errors <- err
-		return b, false
+		return b, false, nil
 	}
 	b.operations[0] = op
-	return b, true
+	return b, true, nil
 }
 
 func (la *leaseAssigner) getLease(key []byte) (node.ID, error) {
@@ -72,11 +73,11 @@ func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address
 	return lp
 }
 
-func (lp *leaseProxy) _switch(_ confluence.Context, batch batch) address.Address {
+func (lp *leaseProxy) _switch(_ signal.Context, batch batch) (address.Address, error) {
 	if batch.single().Leaseholder == lp.Cluster.HostID() {
-		return lp.localTo
+		return lp.localTo, nil
 	}
-	return lp.remoteTo
+	return lp.remoteTo, nil
 }
 
 type LeaseMessage struct {
@@ -98,7 +99,7 @@ func newLeaseSender(cfg Config) segment {
 	return ls
 }
 
-func (lf *leaseSender) send(ctx confluence.Context, batch batch) {
+func (lf *leaseSender) send(ctx signal.Context, batch batch) error {
 	defer close(batch.errors)
 	op := batch.single()
 
@@ -110,17 +111,19 @@ func (lf *leaseSender) send(ctx confluence.Context, batch batch) {
 	addr, err := lf.Cluster.Resolve(op.Leaseholder)
 	if err != nil {
 		batch.errors <- err
-		return
+		return nil
 	}
-	if _, err = lf.Config.LeaseTransport.Send(ctx.Ctx, addr, LeaseMessage{Operation: op}); err != nil {
-		batch.errors <- errors.Wrap(err, "failed to send lease operation")
+	_, err = lf.Config.LeaseTransport.Send(context.TODO(), addr, LeaseMessage{Operation: op})
+	if err != nil {
+		batch.errors <- errors.Wrap(err, "[kv.leaseSender] - failed to send operation")
 	}
+	return nil
 }
 
 type leaseReceiver struct {
 	Config
 	confluence.UnarySource[batch]
-	ctx confluence.Context
+	ctx signal.Context
 }
 
 func newLeaseReceiver(cfg Config) segment {
@@ -129,7 +132,7 @@ func newLeaseReceiver(cfg Config) segment {
 	return lr
 }
 
-func (lr *leaseReceiver) Flow(ctx confluence.Context) { lr.ctx = ctx }
+func (lr *leaseReceiver) Flow(ctx signal.Context) { lr.ctx = ctx }
 
 func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
 	b := msg.toBatch()
@@ -142,10 +145,5 @@ func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.N
 	)
 
 	lr.Out.Inlet() <- b
-	err := <-b.errors
-	if err != nil {
-		lr.ctx.ErrC <- errors.Wrap(err, "lease failed to process operation")
-	}
-
-	return types.Nil{}, err
+	return types.Nil{}, <-b.errors
 }

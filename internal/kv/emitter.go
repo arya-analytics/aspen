@@ -2,6 +2,7 @@ package kv
 
 import (
 	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/store"
 )
 
@@ -24,12 +25,14 @@ func newEmitter(cfg Config) *emitter {
 	return s
 }
 
-func (u *emitter) Store(_ confluence.Context, batch batch) {
+func (u *emitter) Store(_ signal.Context, batch batch) error {
 	snap := u.Observable.CopyState()
 	snap.Merge(batch.operations)
 	u.Observable.SetState(snap)
+	return nil
 }
 
-func (u *emitter) Emit(_ confluence.Context) batch {
-	return batch{operations: u.Observable.ReadState().Operations().whereState(infected)}
+func (u *emitter) Emit(_ signal.Context) (batch, error) {
+	b := batch{operations: u.Observable.ReadState().Operations().whereState(infected)}
+	return b, nil
 }

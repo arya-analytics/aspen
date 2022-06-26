@@ -5,6 +5,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/gossip"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/store"
 	"github.com/arya-analytics/x/transport"
 	"github.com/cockroachdb/errors"
@@ -36,17 +37,17 @@ func newOperationSender(cfg Config) segment {
 	return os
 }
 
-func (g *operationSender) send(ctx confluence.Context, b batch) (batch, bool) {
+func (g *operationSender) send(ctx signal.Context, b batch) (batch, bool, error) {
 	// If we have no operations to propagate, it's best to avoid the network chatter.
 	if len(b.operations) == 0 {
-		return batch{}, false
+		return batch{}, false, nil
 	}
 
 	hostID := g.Cluster.HostID()
 	peer := gossip.RandomPeer(g.Cluster.Nodes(), hostID)
 	if peer.Address == "" {
 		g.Logger.Warnw("no healthy nodes to gossip with", "host", hostID)
-		return batch{}, false
+		return batch{}, false, nil
 	}
 
 	g.Logger.Debugw("gossiping operations",
@@ -56,17 +57,17 @@ func (g *operationSender) send(ctx confluence.Context, b batch) (batch, bool) {
 	)
 
 	sync := OperationMessage{Operations: b.operations, Sender: hostID}
-	ack, err := g.OperationsTransport.Send(ctx.Ctx, peer.Address, sync)
+	ack, err := g.OperationsTransport.Send(context.TODO(), peer.Address, sync)
 	if err != nil {
-		ctx.ErrC <- errors.Wrap(err, "[kv] - failed to gossip operations")
+		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip operations")
 	}
 
 	// If we have no operations to persist, avoid the pipeline overhead.
 	if len(ack.Operations) == 0 {
-		return b, false
+		return b, false, nil
 	}
 
-	return ack.toBatch(), true
+	return ack.toBatch(), true, nil
 }
 
 // |||| RECEIVER ||||
@@ -117,7 +118,7 @@ func newFeedbackSender(cfg Config) segment {
 	return fs
 }
 
-func (f *feedbackSender) send(ctx confluence.Context, b batch) {
+func (f *feedbackSender) send(ctx signal.Context, b batch) error {
 	msg := FeedbackMessage{Sender: f.Cluster.Host().ID, Digests: b.operations.digests()}
 	sender, _ := f.Cluster.Node(b.sender)
 	f.Logger.Debugw("gossiping feedback",
@@ -125,9 +126,10 @@ func (f *feedbackSender) send(ctx confluence.Context, b batch) {
 		"peer", b.sender,
 		"count", len(msg.Digests),
 	)
-	if _, err := f.FeedbackTransport.Send(ctx.Ctx, sender.Address, msg); err != nil {
-		ctx.ErrC <- errors.Wrap(err, "[kv] - failed to gossip feedback")
+	if _, err := f.FeedbackTransport.Send(context.TODO(), sender.Address, msg); err != nil {
+		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip feedback")
 	}
+	return nil
 }
 
 // |||| RECEIVER ||||

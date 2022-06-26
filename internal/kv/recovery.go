@@ -3,6 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
 )
 
 type recoveryTransform struct {
@@ -17,11 +18,13 @@ func newRecoveryTransform(cfg Config) segment {
 	return r
 }
 
-func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBatch batch, ok bool) {
+func (r *recoveryTransform) transform(ctx signal.Context,
+	batch batch) (oBatch batch, ok bool, err error) {
 	for _, op := range batch.operations {
 		key, err := kv_.CompositeKey(op.Key, op.Version)
 		if err != nil {
-			ctx.ErrC <- err
+			ctx.Transient() <- err
+			return oBatch, false, nil
 		}
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
@@ -32,5 +35,5 @@ func (r *recoveryTransform) transform(ctx confluence.Context, batch batch) (oBat
 		}
 		r.repetitions[strKey]++
 	}
-	return oBatch, true
+	return oBatch, true, nil
 }

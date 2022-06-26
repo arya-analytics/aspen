@@ -6,7 +6,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
 )
 
@@ -27,19 +27,12 @@ type Writer interface {
 type (
 	// Reader is a readable key-value store.
 	Reader = kv_.Reader
-	// Closer is a key-value store that can be closed. Block until all pending
-	// operations have persisted to disk.
-	Closer = kv_.Closer
 )
 
 // KV is a readable and writable key-value store.
 type KV interface {
 	Writer
 	Reader
-	// Closer is used to shut down the KV store. It's important to not that this does NOT close the underlying
-	// store or the network. It simply shuts down all distribution processes that this package runs.
-	// The underlying store (Config.Engine) must be closed by the caller.
-	Closer
 	// Stringer returns a description of the KV store.
 	fmt.Stringer
 }
@@ -93,7 +86,7 @@ const (
 	executorAddr          = "executor"
 )
 
-func Open(cfg Config) (KV, error) {
+func Open(ctx signal.Context, cfg Config) (KV, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -106,10 +99,6 @@ func Open(cfg Config) (KV, error) {
 	}
 
 	exec := newExecutor(cfg)
-
-	ctx := confluence.DefaultContext()
-	ctx.Shutdown = cfg.Shutdown
-	ctx.ErrC = make(chan error, 10)
 
 	emitterStore := newEmitter(cfg)
 
@@ -184,20 +173,15 @@ func Open(cfg Config) (KV, error) {
 		Capacity: 1,
 	})
 
-	ctx.Shutdown.Go(func(sig chan shutdown.Signal) error {
-		for {
-			select {
-			case <-sig:
-				return nil
-			case err = <-ctx.ErrC:
-				cfg.Logger.Errorw("kv pipeline error", "err", err)
-			}
-		}
-	})
+	builder.PanicIfErr()
 
 	pipeline.Flow(ctx)
 
-	return &kv{Config: cfg, KV: cfg.Engine, exec: exec}, builder.Error()
+	return &kv{
+		Config: cfg,
+		KV:     cfg.Engine,
+		exec:   exec,
+	}, nil
 }
 
 func copyKeyAndValue(key, value []byte) ([]byte, []byte) {

@@ -4,6 +4,7 @@ import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
 	kv_ "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/version"
 )
 
@@ -23,7 +24,10 @@ func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address
 	return s
 }
 
-func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Address]batch {
+func (vc *versionFilter) _switch(
+	ctx signal.Context,
+	b batch,
+) (map[address.Address]batch, error) {
 	var (
 		rejected = batch{errors: b.errors, sender: b.sender}
 		accepted = batch{errors: b.errors, sender: b.sender}
@@ -31,7 +35,7 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 	for _, op := range b.operations {
 		if vc.filter(op) {
 			if err := vc.set(op); err != nil {
-				ctx.ErrC <- err
+				ctx.Transient() <- err
 			}
 			accepted.operations = append(accepted.operations, op)
 		} else {
@@ -50,7 +54,7 @@ func (vc *versionFilter) _switch(ctx confluence.Context, b batch) map[address.Ad
 		"accepted", len(accepted.operations),
 		"rejected", len(rejected.operations),
 	)
-	return resMap
+	return resMap, nil
 }
 
 func (vc *versionFilter) set(op Operation) error {
@@ -100,16 +104,15 @@ func newVersionAssigner(cfg Config) (segment, error) {
 	return v, err
 }
 
-func (va *versionAssigner) assign(ctx confluence.Context, b batch) (batch, bool) {
+func (va *versionAssigner) assign(ctx signal.Context, b batch) (batch, bool, error) {
 	latestVer := va.counter.Value()
 	if _, err := va.counter.Increment(int64(len(b.operations))); err != nil {
 		va.Logger.Errorw("failed to assign version", "err", err)
 		b.errors <- err
-		ctx.ErrC <- err
-		return batch{}, false
+		return batch{}, false, nil
 	}
 	for i := range b.operations {
 		b.operations[i].Version = version.Counter(latestVer + int64(i) + 1)
 	}
-	return b, true
+	return b, true, nil
 }

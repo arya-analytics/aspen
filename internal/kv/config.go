@@ -4,7 +4,6 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/x/alamos"
 	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/shutdown"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"time"
@@ -24,9 +23,6 @@ type Config struct {
 	// LeaseTransport is used to send lease operations between nodes.
 	// [Required]
 	LeaseTransport LeaseTransport
-	// Shutdown is used to gracefully shutdown the cluster.
-	// [Not Required]
-	Shutdown shutdown.Shutdown
 	// Logger is the witness of it all.
 	// [Not Required]
 	Logger *zap.SugaredLogger
@@ -54,9 +50,6 @@ func (cfg Config) Merge(def Config) Config {
 	}
 	if cfg.LeaseTransport == nil {
 		cfg.LeaseTransport = def.LeaseTransport
-	}
-	if cfg.Shutdown == nil {
-		cfg.Shutdown = def.Shutdown
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = def.Logger
