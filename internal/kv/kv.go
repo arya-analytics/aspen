@@ -5,7 +5,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
 )
@@ -21,12 +21,12 @@ type Writer interface {
 	// Writer represents the same interface to a typical key-value store.
 	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
 	// the host.
-	kv_.Writer
+	kvx.Writer
 }
 
 type (
 	// Reader is a readable key-value store.
-	Reader = kv_.Reader
+	Reader = kvx.Reader
 )
 
 // KV is a readable and writable key-value store.
@@ -38,7 +38,7 @@ type KV interface {
 }
 
 type kv struct {
-	kv_.KV
+	kvx.KV
 	Config
 	exec *executor
 }

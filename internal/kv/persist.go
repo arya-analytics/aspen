@@ -3,7 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/errutil"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 )
 
@@ -33,7 +33,7 @@ func (ps *persist) persist(ctx signal.Context, b batch) (batch, bool, error) {
 			if err != nil {
 				return err
 			}
-			if err = kv_.Flush(ps.Engine, key, op.Digest()); err != nil {
+			if err = kvx.Flush(ps.Engine, key, op.Digest()); err != nil {
 				return err
 			}
 			accepted.operations = append(accepted.operations, op)

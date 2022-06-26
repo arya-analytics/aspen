@@ -3,7 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/x/alamos"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"time"
@@ -28,7 +28,7 @@ type Config struct {
 	Logger *zap.SugaredLogger
 	// Engine is the underlying key-value engine that KV writes its operations to.
 	//[Required]
-	Engine kv_.KV
+	Engine kvx.KV
 	// GossipInterval is how often a node initiates gossip with a peer.
 	// [Not Required]
 	GossipInterval time.Duration

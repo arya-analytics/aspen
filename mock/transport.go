@@ -7,7 +7,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	"go/types"
 )
@@ -43,7 +43,7 @@ type transport struct {
 }
 
 // Configure implements aspen.Transport.
-func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error {
+func (t *transport) Configure(ctx signal.Context, addr address.Address) error {
 	t.pledge = t.net.pledge.RouteUnary(addr)
 	t.cluster = t.net.cluster.RouteUnary(addr)
 	t.operations = t.net.operations.RouteUnary(addr)

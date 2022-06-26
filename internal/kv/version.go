@@ -3,7 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/version"
 )
@@ -12,7 +12,7 @@ import (
 
 type versionFilter struct {
 	Config
-	memKV      kv_.KV
+	memKV      kvx.KV
 	acceptedTo address.Address
 	rejectedTo address.Address
 	confluence.BatchSwitch[batch]
@@ -58,7 +58,7 @@ func (vc *versionFilter) _switch(
 }
 
 func (vc *versionFilter) set(op Operation) error {
-	return kv_.Flush(vc.memKV, op.Key, op.Digest())
+	return kvx.Flush(vc.memKV, op.Key, op.Digest())
 }
 
 func (vc *versionFilter) filter(op Operation) bool {
@@ -66,7 +66,7 @@ func (vc *versionFilter) filter(op Operation) bool {
 	if err != nil {
 		dig, err = getDigestFromKV(vc.Engine, op.Key)
 		if err != nil {
-			return err == kv_.ErrNotFound
+			return err == kvx.ErrNotFound
 		}
 	}
 	if op.Version.YoungerThan(dig.Version) {
@@ -78,13 +78,13 @@ func (vc *versionFilter) filter(op Operation) bool {
 	return true
 }
 
-func getDigestFromKV(kve kv_.KV, key []byte) (Digest, error) {
+func getDigestFromKV(kve kvx.KV, key []byte) (Digest, error) {
 	dig := &Digest{}
 	key, err := digestKey(key)
 	if err != nil {
 		return *dig, err
 	}
-	return *dig, kv_.Load(kve, key, dig)
+	return *dig, kvx.Load(kve, key, dig)
 }
 
 // |||||| ASSIGNER ||||||
@@ -93,12 +93,12 @@ const versionCounterKey = "ver"
 
 type versionAssigner struct {
 	Config
-	counter *kv_.PersistedCounter
+	counter *kvx.PersistedCounter
 	confluence.Transform[batch]
 }
 
 func newVersionAssigner(cfg Config) (segment, error) {
-	c, err := kv_.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
+	c, err := kvx.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
 	v := &versionAssigner{Config: cfg, counter: c}
 	v.Transform.Transform = v.assign
 	return v, err

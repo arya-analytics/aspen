@@ -5,7 +5,7 @@ import (
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/errutil"
 	"github.com/arya-analytics/x/filter"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/version"
 	"io"
 )
@@ -92,7 +92,7 @@ func (o Operation) Flush(w io.Writer) error {
 
 const operationKey = "--op--"
 
-func digestKey(key []byte) (opKey []byte, err error) { return kv_.CompositeKey(operationKey, key) }
+func digestKey(key []byte) (opKey []byte, err error) { return kvx.CompositeKey(operationKey, key) }
 
 type Operations []Operation
 

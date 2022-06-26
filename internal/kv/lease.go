@@ -5,7 +5,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/confluence"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/transport"
 	"github.com/cockroachdb/errors"
@@ -40,7 +40,7 @@ func (la *leaseAssigner) assignLease(ctx signal.Context, b batch) (batch, bool, 
 			b.errors <- ErrLeaseNotTransferable
 			return b, false, nil
 		}
-	} else if err == kv_.ErrNotFound && op.Variant == Set {
+	} else if err == kvx.ErrNotFound && op.Variant == Set {
 		if op.Leaseholder == DefaultLeaseholder {
 			// If we can't find the leaseholder, and the op doesn't have a leaseholder assigned,
 			// we assign the lease to the cluster host.

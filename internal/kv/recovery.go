@@ -2,7 +2,7 @@ package kv
 
 import (
 	"github.com/arya-analytics/x/confluence"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 )
 
@@ -21,7 +21,7 @@ func newRecoveryTransform(cfg Config) segment {
 func (r *recoveryTransform) transform(ctx signal.Context,
 	batch batch) (oBatch batch, ok bool, err error) {
 	for _, op := range batch.operations {
-		key, err := kv_.CompositeKey(op.Key, op.Version)
+		key, err := kvx.CompositeKey(op.Key, op.Version)
 		if err != nil {
 			ctx.Transient() <- err
 			return oBatch, false, nil
