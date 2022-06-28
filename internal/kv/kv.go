@@ -129,7 +129,7 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
 		ToAddresses:   []address.Address{leaseProxyAddr},
-		Stitch:        confluence.StitchLinear,
+		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
@@ -143,7 +143,7 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
 		ToAddresses:   []address.Address{versionFilterAddr},
-		Stitch:        confluence.StitchLinear,
+		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
@@ -163,7 +163,7 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 	builder.Route(confluence.MultiRouter[batch]{
 		FromAddresses: []address.Address{persistAddr, recoveryTransformAddr},
 		ToAddresses:   []address.Address{emitterAddr},
-		Stitch:        confluence.StitchLinear,
+		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
@@ -182,11 +182,4 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 		KV:     cfg.Engine,
 		exec:   exec,
 	}, nil
-}
-
-func copyKeyAndValue(key, value []byte) ([]byte, []byte) {
-	_key, _value := make([]byte, len(key)), make([]byte, len(value))
-	copy(_key, key)
-	copy(_value, value)
-	return _key, _value
 }

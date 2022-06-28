@@ -28,22 +28,35 @@ var ErrNotFound = errors.New("[cluster] - node not found")
 
 // Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
-	// Host returns the host Node (i.e. the node that Host is called on).
-	Host() node.Node
-	// HostID returns the ID of the host node.
-	HostID() node.ID
+	HostResolver
 	// Nodes returns a node.Group of all nodes in the cluster. The returned map is not safe to modify. To modify,
 	// use node.Group.Copy().
 	Nodes() node.Group
 	// Node returns the member Node with the given ID.
 	Node(id node.ID) (node.Node, error)
-	// Resolve resolves the address of a node with the given ID.
-	Resolve(id node.ID) (address.Address, error)
 	// Config returns the configuration parameters used by the cluster.
 	Config() Config
 	// Observable returns can be used to monitor changes to the cluster state. Be careful not to modify the
 	// contents of the returned State.
 	observe.Observable[State]
+}
+
+// Resolver is used to resolve a reachable address for a node in the cluster.
+type Resolver interface {
+	// Resolve resolves the address of a node with the given ID.
+	Resolve(id node.ID) (address.Address, error)
+}
+
+type Host interface {
+	// Host returns the host Node (i.e. the node that Host is called on).
+	Host() node.Node
+	// HostID returns the ID of the host node.
+	HostID() node.ID
+}
+
+type HostResolver interface {
+	Resolver
+	Host
 }
 
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening

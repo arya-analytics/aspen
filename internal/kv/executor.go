@@ -20,8 +20,8 @@ func (e *executor) setWithLease(key []byte, leaseholder node.ID, value []byte) e
 	// We need to make copies of the key and value so that the caller can safely modify
 	// them after the call returns.
 	return e.exec(Operation{
-		Key:         binary.NewCopy(key),
-		Value:       binary.NewCopy(value),
+		Key:         binary.MakeCopy(key),
+		Value:       binary.MakeCopy(value),
 		Leaseholder: leaseholder,
 		Variant:     Set,
 	})

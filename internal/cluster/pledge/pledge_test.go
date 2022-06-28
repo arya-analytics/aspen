@@ -196,7 +196,7 @@ var _ = Describe("Node", func() {
 				Expect(id).To(Equal(node.ID(0)))
 			})
 		})
-		Describe("Cancelling a Context", func() {
+		Describe("Cancelling a NodeInfo", func() {
 			It("Should stop all operations and return a cancellation error", func() {
 				var (
 					nodes         = make(node.Group)

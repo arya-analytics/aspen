@@ -14,13 +14,19 @@ import (
 
 type (
 	Cluster      = cluster.Cluster
+	Resolver     = cluster.Resolver
+	HostResolver = cluster.HostResolver
 	Node         = node.Node
 	NodeID       = node.ID
-	KV           = kv.KV
 	Address      = address.Address
 	NodeState    = node.State
 	ClusterState = cluster.State
 )
+
+type KV interface {
+	kv.KV
+	kvx.Closer
+}
 
 const (
 	Healthy = node.StateHealthy
@@ -32,12 +38,11 @@ const (
 type DB interface {
 	Cluster
 	KV
-	kvx.Closer
 }
 
 type db struct {
 	Cluster
-	KV
+	kv.KV
 	options  *options
 	wg       signal.WaitGroup
 	shutdown context.CancelFunc
