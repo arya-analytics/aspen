@@ -57,7 +57,7 @@ func (g *operationSender) send(ctx signal.Context, b batch) (batch, bool, error)
 	)
 
 	sync := OperationMessage{Operations: b.operations, Sender: hostID}
-	ack, err := g.OperationsTransport.Send(context.TODO(), peer.Address, sync)
+	ack, err := g.OperationsTransport.Send(ctx, peer.Address, sync)
 	if err != nil {
 		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip operations")
 	}
@@ -88,7 +88,11 @@ func (g *operationReceiver) handle(ctx context.Context, message OperationMessage
 	b := message.toBatch()
 	hostID := g.Cluster.HostID()
 	g.Logger.Debug("received gossip", zap.Stringer("peer", message.Sender), zap.Stringer("host", hostID))
-	g.Out.Inlet() <- b
+	select {
+	case <-ctx.Done():
+		return OperationMessage{}, ctx.Err()
+	case g.Out.Inlet() <- b:
+	}
 	return OperationMessage{Operations: g.Store.ReadState().Operations(), Sender: hostID}, nil
 }
 

@@ -18,6 +18,7 @@ type Builder struct {
 	tmpDir          string
 	_addressFactory *address.Factory
 	Nodes           map[aspen.NodeID]NodeInfo
+	memBacked       bool
 }
 
 type NodeInfo struct {
@@ -72,4 +73,9 @@ func (b *Builder) Close() error {
 	return c.Error()
 }
 
-func (b *Builder) Cleanup() error { return os.RemoveAll(b.Dir()) }
+func (b *Builder) Cleanup() error {
+	if !b.memBacked {
+		return os.RemoveAll(b.Dir())
+	}
+	return nil
+}

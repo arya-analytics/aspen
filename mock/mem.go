@@ -18,6 +18,7 @@ func NewMemBuilder(defaultOpts ...aspen.Option) *Builder {
 			aspen.MemBacked(),
 			aspen.WithPropagationConfig(propConfig),
 		}, defaultOpts...),
-		Nodes: make(map[aspen.NodeID]NodeInfo),
+		Nodes:     make(map[aspen.NodeID]NodeInfo),
+		memBacked: true,
 	}
 }
