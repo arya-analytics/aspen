@@ -1,6 +1,6 @@
 // Package cluster provides an interface for joining a cluster of nodes and exchanging state through an SI gossip model.
 // Nodes can join the cluster without needing to know all members. Cluster will automatically manage the membership of
-// new nodes by assigning them unique IDs and keeping them in sync with their peers. ToAddr Join a cluster, simply use
+// new nodes by assigning them unique IDs and keeping them in sync with their peers. SinkTarget Join a cluster, simply use
 // cluster.Join.
 package cluster
 

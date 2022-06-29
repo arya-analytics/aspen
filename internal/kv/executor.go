@@ -4,7 +4,6 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/binary"
 	"github.com/arya-analytics/x/confluence"
-	"github.com/arya-analytics/x/signal"
 )
 
 type executor struct {
@@ -13,8 +12,6 @@ type executor struct {
 }
 
 func newExecutor(cfg Config) *executor { return &executor{Config: cfg} }
-
-func (e *executor) Flow(ctx signal.Context) {}
 
 func (e *executor) setWithLease(key []byte, leaseholder node.ID, value []byte) error {
 	// We need to make copies of the key and value so that the caller can safely modify

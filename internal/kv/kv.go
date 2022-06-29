@@ -121,56 +121,56 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 	builder := pipeline.NewRouteBuilder()
 
 	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: executorAddr,
-		ToAddr:   leaseAssignerAddr,
-		Capacity: 1,
+		SourceTarget: executorAddr,
+		SinkTarget:   leaseAssignerAddr,
+		Capacity:     1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
-		ToAddresses:   []address.Address{leaseProxyAddr},
+		SourceTargets: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
+		SinkTargets:   []address.Address{leaseProxyAddr},
 		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{leaseProxyAddr},
-		ToAddresses:   []address.Address{versionAssignerAddr, leaseSenderAddr},
+		SourceTargets: []address.Address{leaseProxyAddr},
+		SinkTargets:   []address.Address{versionAssignerAddr, leaseSenderAddr},
 		Stitch:        confluence.StitchWeave,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
-		ToAddresses:   []address.Address{versionFilterAddr},
+		SourceTargets: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
+		SinkTargets:   []address.Address{versionFilterAddr},
 		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{versionFilterAddr},
-		ToAddresses:   []address.Address{feedbackSenderAddr, persistAddr},
+		SourceTargets: []address.Address{versionFilterAddr},
+		SinkTargets:   []address.Address{feedbackSenderAddr, persistAddr},
 		Stitch:        confluence.StitchWeave,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: feedbackReceiverAddr,
-		ToAddr:   recoveryTransformAddr,
-		Capacity: 1,
+		SourceTarget: feedbackReceiverAddr,
+		SinkTarget:   recoveryTransformAddr,
+		Capacity:     1,
 	})
 
 	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{persistAddr, recoveryTransformAddr},
-		ToAddresses:   []address.Address{emitterAddr},
+		SourceTargets: []address.Address{persistAddr, recoveryTransformAddr},
+		SinkTargets:   []address.Address{emitterAddr},
 		Stitch:        confluence.StitchUnary,
 		Capacity:      1,
 	})
 
 	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: emitterAddr,
-		ToAddr:   operationSenderAddr,
-		Capacity: 1,
+		SourceTarget: emitterAddr,
+		SinkTarget:   operationSenderAddr,
+		Capacity:     1,
 	})
 
 	builder.PanicIfErr()

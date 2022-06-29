@@ -123,7 +123,6 @@ func (lf *leaseSender) send(ctx signal.Context, batch batch) error {
 type leaseReceiver struct {
 	Config
 	confluence.UnarySource[batch]
-	ctx signal.Context
 }
 
 func newLeaseReceiver(cfg Config) segment {
@@ -131,8 +130,6 @@ func newLeaseReceiver(cfg Config) segment {
 	lr.LeaseTransport.Handle(lr.receive)
 	return lr
 }
-
-func (lr *leaseReceiver) Flow(ctx signal.Context) { lr.ctx = ctx }
 
 func (lr *leaseReceiver) receive(ctx context.Context, msg LeaseMessage) (types.Nil, error) {
 	b := msg.toBatch()
