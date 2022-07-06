@@ -34,7 +34,7 @@ func (g *Gossip) GoGossip(ctx signal.Context) {
 	signal.GoTick(
 		ctx,
 		g.Interval,
-		func(t time.Time) error {
+		func(ctx signal.Context, t time.Time) error {
 			if err := g.GossipOnce(ctx); err != nil {
 				ctx.Transient() <- err
 			}

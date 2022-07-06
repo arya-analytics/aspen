@@ -123,7 +123,11 @@ func (b *batch) single() Operation {
 	return b.operations[0]
 }
 
-type segment = confluence.Segment[batch]
+type (
+	segment = confluence.Segment[batch, batch]
+	source  = confluence.Source[batch]
+	sink    = confluence.Sink[batch]
+)
 
 type operationMap map[string]Operation
 

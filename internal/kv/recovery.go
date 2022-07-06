@@ -8,13 +8,13 @@ import (
 
 type recoveryTransform struct {
 	Config
-	confluence.Transform[batch]
+	confluence.LinearTransform[batch, batch]
 	repetitions map[string]int
 }
 
 func newRecoveryTransform(cfg Config) segment {
 	r := &recoveryTransform{Config: cfg, repetitions: make(map[string]int)}
-	r.Transform.Transform = r.transform
+	r.ApplyTransform = r.transform
 	return r
 }
 

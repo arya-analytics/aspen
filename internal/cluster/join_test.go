@@ -32,6 +32,7 @@ var _ = Describe("Join", func() {
 		gossipNet = tmock.NewNetwork[gossip.Message, gossip.Message]()
 		pledgeNet = tmock.NewNetwork[node.ID, node.ID]()
 		logger = zap.NewNop().Sugar()
+		signal.LogTransient(clusterCtx, logger)
 	})
 
 	It("Should correctly join the cluster", func() {

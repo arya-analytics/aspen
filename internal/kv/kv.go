@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/confluence/plumber"
+	"github.com/arya-analytics/x/errutil"
 	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
@@ -102,80 +103,82 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 
 	emitterStore := newEmitter(cfg)
 
-	pipeline := confluence.NewPipeline[batch]()
-	pipeline.Segment(executorAddr, exec)
-	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
-	pipeline.Segment(leaseAssignerAddr, newLeaseAssigner(cfg))
-	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
-	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
-	pipeline.Segment(versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
-	pipeline.Segment(versionAssignerAddr, va)
-	pipeline.Segment(leaseSenderAddr, newLeaseSender(cfg))
-	pipeline.Segment(persistAddr, newPersist(cfg))
-	pipeline.Segment(emitterAddr, emitterStore)
-	pipeline.Segment(operationSenderAddr, newOperationSender(cfg))
-	pipeline.Segment(feedbackSenderAddr, newFeedbackSender(cfg))
-	pipeline.Segment(feedbackReceiverAddr, newFeedbackReceiver(cfg))
-	pipeline.Segment(recoveryTransformAddr, newRecoveryTransform(cfg))
+	pipe := plumber.New()
+	plumber.SetSource[batch](pipe, executorAddr, exec)
+	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
+	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
+	plumber.SetSegment[batch, batch](pipe, leaseAssignerAddr, newLeaseAssigner(cfg))
+	plumber.SetSegment[batch, batch](pipe, leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
+	plumber.SetSource[batch](pipe, operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
+	plumber.SetSegment[batch, batch](pipe, versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
+	plumber.SetSegment[batch, batch](pipe, versionAssignerAddr, va)
+	plumber.SetSink[batch](pipe, leaseSenderAddr, newLeaseSender(cfg))
+	plumber.SetSegment[batch, batch](pipe, persistAddr, newPersist(cfg))
+	plumber.SetSegment[batch, batch](pipe, emitterAddr, emitterStore)
+	plumber.SetSegment[batch, batch](pipe, operationSenderAddr, newOperationSender(cfg))
+	plumber.SetSink[batch](pipe, feedbackSenderAddr, newFeedbackSender(cfg))
+	plumber.SetSource[batch](pipe, feedbackReceiverAddr, newFeedbackReceiver(cfg))
+	plumber.SetSegment[batch, batch](pipe, recoveryTransformAddr, newRecoveryTransform(cfg))
 
-	builder := pipeline.NewRouteBuilder()
-
-	builder.Route(confluence.UnaryRouter[batch]{
+	c := errutil.NewCatchSimple()
+	c.Exec(plumber.UnaryRouter[batch]{
 		SourceTarget: executorAddr,
 		SinkTarget:   leaseAssignerAddr,
 		Capacity:     1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[batch]{
 		SourceTargets: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
 		SinkTargets:   []address.Address{leaseProxyAddr},
-		Stitch:        confluence.StitchUnary,
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[batch]{
 		SourceTargets: []address.Address{leaseProxyAddr},
 		SinkTargets:   []address.Address{versionAssignerAddr, leaseSenderAddr},
-		Stitch:        confluence.StitchWeave,
+		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[batch]{
 		SourceTargets: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
 		SinkTargets:   []address.Address{versionFilterAddr},
-		Stitch:        confluence.StitchUnary,
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[batch]{
 		SourceTargets: []address.Address{versionFilterAddr},
 		SinkTargets:   []address.Address{feedbackSenderAddr, persistAddr},
-		Stitch:        confluence.StitchWeave,
+		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.UnaryRouter[batch]{
+	c.Exec(plumber.UnaryRouter[batch]{
 		SourceTarget: feedbackReceiverAddr,
 		SinkTarget:   recoveryTransformAddr,
 		Capacity:     1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[batch]{
 		SourceTargets: []address.Address{persistAddr, recoveryTransformAddr},
 		SinkTargets:   []address.Address{emitterAddr},
-		Stitch:        confluence.StitchUnary,
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.UnaryRouter[batch]{
+	c.Exec(plumber.UnaryRouter[batch]{
 		SourceTarget: emitterAddr,
 		SinkTarget:   operationSenderAddr,
 		Capacity:     1,
-	})
+	}.PreRoute(pipe))
 
-	builder.PanicIfErr()
+	if c.Error() != nil {
+		panic(c.Error())
+	}
 
-	pipeline.Flow(ctx)
+	pipe.Flow(ctx)
 
 	return &kv{
 		Config: cfg,

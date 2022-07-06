@@ -15,19 +15,20 @@ type versionFilter struct {
 	memKV      kvx.KV
 	acceptedTo address.Address
 	rejectedTo address.Address
-	confluence.BatchSwitch[batch]
+	confluence.BatchSwitch[batch, batch]
 }
 
 func newVersionFilter(cfg Config, acceptedTo address.Address, rejectedTo address.Address) segment {
 	s := &versionFilter{Config: cfg, acceptedTo: acceptedTo, rejectedTo: rejectedTo, memKV: cfg.Engine}
-	s.BatchSwitch.Switch = s._switch
+	s.BatchSwitch.ApplySwitch = s._switch
 	return s
 }
 
 func (vc *versionFilter) _switch(
 	ctx signal.Context,
 	b batch,
-) (map[address.Address]batch, error) {
+	o map[address.Address]batch,
+) error {
 	var (
 		rejected = batch{errors: b.errors, sender: b.sender}
 		accepted = batch{errors: b.errors, sender: b.sender}
@@ -42,19 +43,18 @@ func (vc *versionFilter) _switch(
 			rejected.operations = append(rejected.operations, op)
 		}
 	}
-	resMap := map[address.Address]batch{}
 	if len(accepted.operations) > 0 {
-		resMap[vc.acceptedTo] = accepted
+		o[vc.acceptedTo] = accepted
 	}
 	if len(rejected.operations) > 0 {
-		resMap[vc.rejectedTo] = rejected
+		o[vc.rejectedTo] = rejected
 	}
 	vc.Logger.Debugw("version filter",
 		"host", vc.Cluster.HostID(),
 		"accepted", len(accepted.operations),
 		"rejected", len(rejected.operations),
 	)
-	return resMap, nil
+	return nil
 }
 
 func (vc *versionFilter) set(op Operation) error {
@@ -94,13 +94,13 @@ const versionCounterKey = "ver"
 type versionAssigner struct {
 	Config
 	counter *kvx.PersistedCounter
-	confluence.Transform[batch]
+	confluence.LinearTransform[batch, batch]
 }
 
 func newVersionAssigner(cfg Config) (segment, error) {
 	c, err := kvx.NewPersistedCounter(cfg.Engine, []byte(versionCounterKey))
 	v := &versionAssigner{Config: cfg, counter: c}
-	v.Transform.Transform = v.assign
+	v.ApplyTransform = v.assign
 	return v, err
 }
 

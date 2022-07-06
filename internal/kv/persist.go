@@ -9,12 +9,12 @@ import (
 
 type persist struct {
 	Config
-	confluence.Transform[batch]
+	confluence.LinearTransform[batch, batch]
 }
 
 func newPersist(cfg Config) segment {
 	ps := &persist{Config: cfg}
-	ps.Transform.Transform = ps.persist
+	ps.ApplyTransform = ps.persist
 	return ps
 }
 

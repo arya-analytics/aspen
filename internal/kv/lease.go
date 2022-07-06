@@ -18,12 +18,12 @@ const DefaultLeaseholder node.ID = 0
 
 type leaseAssigner struct {
 	Config
-	confluence.Transform[batch]
+	confluence.LinearTransform[batch, batch]
 }
 
 func newLeaseAssigner(cfg Config) segment {
 	la := &leaseAssigner{Config: cfg}
-	la.Transform.Transform = la.assignLease
+	la.LinearTransform.ApplyTransform = la.assignLease
 	return la
 }
 
@@ -67,17 +67,17 @@ type leaseProxy struct {
 	confluence.Switch[batch]
 }
 
-func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address) *leaseProxy {
+func newLeaseProxy(cfg Config, localTo address.Address, remoteTo address.Address) segment {
 	lp := &leaseProxy{Config: cfg, localTo: localTo, remoteTo: remoteTo}
-	lp.Switch.Switch = lp._switch
+	lp.Switch.ApplySwitch = lp._switch
 	return lp
 }
 
-func (lp *leaseProxy) _switch(_ signal.Context, batch batch) (address.Address, error) {
+func (lp *leaseProxy) _switch(_ signal.Context, batch batch) (address.Address, bool, error) {
 	if batch.single().Leaseholder == lp.Cluster.HostID() {
-		return lp.localTo, nil
+		return lp.localTo, true, nil
 	}
-	return lp.remoteTo, nil
+	return lp.remoteTo, true, nil
 }
 
 type LeaseMessage struct {
@@ -90,10 +90,10 @@ type LeaseTransport = transport.Unary[LeaseMessage, types.Nil]
 
 type leaseSender struct {
 	Config
-	confluence.CoreSink[batch]
+	confluence.UnarySink[batch]
 }
 
-func newLeaseSender(cfg Config) segment {
+func newLeaseSender(cfg Config) sink {
 	ls := &leaseSender{Config: cfg}
 	ls.Sink = ls.send
 	return ls
@@ -122,10 +122,11 @@ func (lf *leaseSender) send(ctx signal.Context, batch batch) error {
 
 type leaseReceiver struct {
 	Config
-	confluence.UnarySource[batch]
+	confluence.AbstractUnarySource[batch]
+	confluence.EmptyFlow
 }
 
-func newLeaseReceiver(cfg Config) segment {
+func newLeaseReceiver(cfg Config) source {
 	lr := &leaseReceiver{Config: cfg}
 	lr.LeaseTransport.Handle(lr.receive)
 	return lr

@@ -57,7 +57,7 @@ var _ = Describe("KV", func() {
 
 		Describe("Local Leaseholder", func() {
 
-			FIt("Should persist the operation to storage", func() {
+			It("Should persist the operation to storage", func() {
 				kv, err := builder.New(kvCtx, kv.Config{}, cluster.Config{})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(kv).ToNot(BeNil())

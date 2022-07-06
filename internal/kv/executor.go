@@ -8,7 +8,8 @@ import (
 
 type executor struct {
 	Config
-	confluence.UnarySource[batch]
+	confluence.EmptyFlow
+	confluence.AbstractUnarySource[batch]
 }
 
 func newExecutor(cfg Config) *executor { return &executor{Config: cfg} }
