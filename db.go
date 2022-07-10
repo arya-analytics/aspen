@@ -51,7 +51,7 @@ type db struct {
 func (db *db) Close() error {
 	db.shutdown()
 	c := errutil.NewCatchSimple(errutil.WithAggregation())
-	c.Exec(db.wg.WaitOnAll)
+	c.Exec(db.wg.Wait)
 	c.Exec(db.options.kv.Engine.Close)
 	if !errors.Is(c.Error(), context.Canceled) {
 		return c.Error()

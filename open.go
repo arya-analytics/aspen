@@ -1,6 +1,7 @@
 package aspen
 
 import (
+	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/x/address"
@@ -10,7 +11,7 @@ import (
 )
 
 func Open(dirname string, addr address.Address, peers []address.Address, opts ...Option) (DB, error) {
-	ctx, shutdown := signal.Background()
+	ctx, shutdown := signal.WithCancel(context.Background())
 
 	o := newOptions(dirname, addr, peers, opts...)
 

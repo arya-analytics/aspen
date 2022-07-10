@@ -31,7 +31,7 @@ var _ = Describe("OperationSender", func() {
 			sOne            store.Store
 			g1              *gossip.Gossip
 			gossipCtx       signal.Context
-			shutdown        context.CancelFunc
+			cancel          context.CancelFunc
 		)
 		BeforeEach(func() {
 			t1, t2, t3 = net.RouteUnary(""), net.RouteUnary(""), net.RouteUnary("")
@@ -42,7 +42,7 @@ var _ = Describe("OperationSender", func() {
 			nodesTwo[3] = node.Node{ID: 3, Address: t3.Address, State: node.StateDead}
 			sTwo := store.New()
 			sTwo.SetState(store.State{Nodes: nodesTwo, HostID: 2})
-			gossipCtx, shutdown = signal.WithCancel(ctx)
+			gossipCtx, cancel = signal.WithCancel(ctx)
 			signal.LogTransient(gossipCtx, logger)
 			var err error
 			g1, err = gossip.New(sOne, gossip.Config{Transport: t1, Logger: logger, Interval: 5 * time.Millisecond})
@@ -56,14 +56,13 @@ var _ = Describe("OperationSender", func() {
 			Expect(sOne.CopyState().Nodes[1].Heartbeat.Version).To(Equal(uint32(1)))
 			Expect(sOne.CopyState().Nodes[3].State).To(Equal(node.StateDead))
 			Expect(sOne.CopyState().Nodes[2].Heartbeat.Version).To(Equal(uint32(0)))
-			shutdown()
-			Expect(errors.Is(gossipCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+			cancel()
 		})
 		It("Should gossip at the correct interval", func() {
 			g1.GoGossip(gossipCtx)
 			time.Sleep(12 * time.Millisecond)
-			shutdown()
-			Expect(errors.Is(gossipCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+			cancel()
+			Expect(errors.Is(gossipCtx.Wait(), context.Canceled)).To(BeTrue())
 			Expect(sOne.CopyState().Nodes).To(HaveLen(3))
 			Expect(sOne.CopyState().Nodes[1].Heartbeat.Version).To(Equal(uint32(2)))
 			Expect(sOne.CopyState().Nodes[3].State).To(Equal(node.StateDead))

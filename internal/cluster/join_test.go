@@ -88,7 +88,7 @@ var _ = Describe("Join", func() {
 		By("Converging cluster state through gossip")
 		time.Sleep(300 * time.Millisecond)
 		shutdown()
-		Expect(errors.Is(clusterCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+		Expect(errors.Is(clusterCtx.Wait(), context.Canceled)).To(BeTrue())
 		Expect(clusterOne.Nodes()).To(HaveLen(2))
 		Expect(clusterTwo.Nodes()).To(HaveLen(2))
 	})

@@ -350,7 +350,7 @@ func (t *transport) Configure(ctx signal.Context, addr address.Address) error {
 	if err != nil {
 		return err
 	}
-	ctx.Go(func() (err error) {
+	ctx.Go(func(ctx signal.Context) (err error) {
 		go func() {
 			err = server.Serve(lis)
 		}()

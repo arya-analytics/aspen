@@ -100,7 +100,7 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 				}
 				time.Sleep(values.convergenceThreshold)
 				shutdown()
-				Expect(errors.Is(clusterCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+				Expect(errors.Is(clusterCtx.Wait(), context.Canceled)).To(BeTrue())
 				for i, cluster_ := range clusters {
 					Expect(cluster_.HostID()).To(Equal(node.ID(i + 1)))
 					Expect(cluster_.Nodes()).To(HaveLen(values.clusterSize))

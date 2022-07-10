@@ -40,7 +40,7 @@ var _ = Describe("KV", func() {
 
 	AfterEach(func() {
 		shutdown()
-		Expect(errors.Is(kvCtx.WaitOnAll(), context.Canceled)).To(BeTrue())
+		Expect(errors.Is(kvCtx.Wait(), context.Canceled)).To(BeTrue())
 	})
 
 	Describe("RouteStream", func() {

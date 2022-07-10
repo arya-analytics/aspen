@@ -206,7 +206,7 @@ func goFlushStore(ctx signal.Context, cfg Config, s store.Store) {
 			Store:       cfg.Storage,
 		}
 		s.OnChange(flush.Flush)
-		ctx.Go(func() error {
+		ctx.Go(func(ctx signal.Context) error {
 			<-ctx.Done()
 			flush.FlushSync(s.CopyState())
 			return ctx.Err()
