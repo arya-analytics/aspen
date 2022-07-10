@@ -1,22 +1,32 @@
 package aspen
 
 import (
+	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/errutil"
+	kvx "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
+	"github.com/cockroachdb/errors"
 )
 
 type (
 	Cluster      = cluster.Cluster
+	Resolver     = cluster.Resolver
+	HostResolver = cluster.HostResolver
 	Node         = node.Node
 	NodeID       = node.ID
-	KV           = kv.KV
 	Address      = address.Address
 	NodeState    = node.State
 	ClusterState = cluster.State
 )
+
+type KV interface {
+	kv.KV
+	kvx.Closer
+}
 
 const (
 	Healthy = node.StateHealthy
@@ -32,13 +42,19 @@ type DB interface {
 
 type db struct {
 	Cluster
-	KV
-	options *options
+	kv.KV
+	options  *options
+	wg       signal.WaitGroup
+	shutdown context.CancelFunc
 }
 
 func (db *db) Close() error {
+	db.shutdown()
 	c := errutil.NewCatchSimple(errutil.WithAggregation())
-	c.Exec(db.options.shutdown.Shutdown)
+	c.Exec(db.wg.Wait)
 	c.Exec(db.options.kv.Engine.Close)
-	return c.Error()
+	if !errors.Is(c.Error(), context.Canceled) {
+		return c.Error()
+	}
+	return nil
 }

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/confluence"
-	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/confluence/plumber"
+	"github.com/arya-analytics/x/errutil"
+	kvx "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
 )
 
@@ -15,36 +16,30 @@ type Writer interface {
 	// SetWithLease is similar to Set, but also takes an id for a leaseholder node.
 	// If the leaseholder node is not the host, the request will be forwarded to the
 	// leaseholder for execution. Only the leaseholder node will be able to perform
-	// set and delete operations on the requested key.
+	// set and delete operations on the requested key. It is safe to modify the contents
+	// of key and value after SetWithLease returns.
 	SetWithLease(key []byte, leaseholder node.ID, value []byte) error
 	// Writer represents the same interface to a typical key-value store.
 	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
 	// the host.
-	kv_.Writer
+	kvx.Writer
 }
 
 type (
 	// Reader is a readable key-value store.
-	Reader = kv_.Reader
-	// Closer is a key-value store that can be closed. Block until all pending
-	// operations have persisted to disk.
-	Closer = kv_.Closer
+	Reader = kvx.Reader
 )
 
 // KV is a readable and writable key-value store.
 type KV interface {
 	Writer
 	Reader
-	// Closer is used to shut down the KV store. It's important to not that this does NOT close the underlying
-	// store or the network. It simply shuts down all distribution processes that this package runs.
-	// The underlying store (Config.Engine) must be closed by the caller.
-	Closer
 	// Stringer returns a description of the KV store.
 	fmt.Stringer
 }
 
 type kv struct {
-	kv_.KV
+	kvx.KV
 	Config
 	exec *executor
 }
@@ -70,6 +65,7 @@ func (k *kv) Set(key []byte, value []byte, opts ...interface{}) error {
 // Delete implements KV.
 func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
 
+// String implements KV.
 func (k *kv) String() string {
 	return fmt.Sprintf("aspen.kv{} backed by %s", k.Config.Engine)
 }
@@ -91,7 +87,7 @@ const (
 	executorAddr          = "executor"
 )
 
-func Open(cfg Config) (KV, error) {
+func Open(ctx signal.Context, cfg Config) (KV, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -105,95 +101,88 @@ func Open(cfg Config) (KV, error) {
 
 	exec := newExecutor(cfg)
 
-	ctx := confluence.DefaultContext()
-	ctx.Shutdown = cfg.Shutdown
-	ctx.ErrC = make(chan error, 10)
-
 	emitterStore := newEmitter(cfg)
 
-	pipeline := confluence.NewPipeline[batch]()
-	pipeline.Segment(executorAddr, exec)
-	pipeline.Segment(leaseReceiverAddr, newLeaseReceiver(cfg))
-	pipeline.Segment(leaseAssignerAddr, newLeaseAssigner(cfg))
-	pipeline.Segment(leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
-	pipeline.Segment(operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
-	pipeline.Segment(versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
-	pipeline.Segment(versionAssignerAddr, va)
-	pipeline.Segment(leaseSenderAddr, newLeaseSender(cfg))
-	pipeline.Segment(persistAddr, newPersist(cfg))
-	pipeline.Segment(emitterAddr, emitterStore)
-	pipeline.Segment(operationSenderAddr, newOperationSender(cfg))
-	pipeline.Segment(feedbackSenderAddr, newFeedbackSender(cfg))
-	pipeline.Segment(feedbackReceiverAddr, newFeedbackReceiver(cfg))
-	pipeline.Segment(recoveryTransformAddr, newRecoveryTransform(cfg))
+	pipe := plumber.New()
+	plumber.SetSource[batch](pipe, executorAddr, exec)
+	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
+	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
+	plumber.SetSegment[batch, batch](pipe, leaseAssignerAddr, newLeaseAssigner(cfg))
+	plumber.SetSegment[batch, batch](pipe, leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
+	plumber.SetSource[batch](pipe, operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
+	plumber.SetSegment[batch, batch](pipe, versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
+	plumber.SetSegment[batch, batch](pipe, versionAssignerAddr, va)
+	plumber.SetSink[batch](pipe, leaseSenderAddr, newLeaseSender(cfg))
+	plumber.SetSegment[batch, batch](pipe, persistAddr, newPersist(cfg))
+	plumber.SetSegment[batch, batch](pipe, emitterAddr, emitterStore)
+	plumber.SetSegment[batch, batch](pipe, operationSenderAddr, newOperationSender(cfg))
+	plumber.SetSink[batch](pipe, feedbackSenderAddr, newFeedbackSender(cfg))
+	plumber.SetSource[batch](pipe, feedbackReceiverAddr, newFeedbackReceiver(cfg))
+	plumber.SetSegment[batch, batch](pipe, recoveryTransformAddr, newRecoveryTransform(cfg))
 
-	builder := pipeline.NewRouteBuilder()
+	c := errutil.NewCatchSimple()
+	c.Exec(plumber.UnaryRouter[batch]{
+		SourceTarget: executorAddr,
+		SinkTarget:   leaseAssignerAddr,
+		Capacity:     1,
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: executorAddr,
-		ToAddr:   leaseAssignerAddr,
-		Capacity: 1,
-	})
-
-	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
-		ToAddresses:   []address.Address{leaseProxyAddr},
-		Stitch:        confluence.StitchLinear,
+	c.Exec(plumber.MultiRouter[batch]{
+		SourceTargets: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
+		SinkTargets:   []address.Address{leaseProxyAddr},
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{leaseProxyAddr},
-		ToAddresses:   []address.Address{versionAssignerAddr, leaseSenderAddr},
-		Stitch:        confluence.StitchWeave,
+	c.Exec(plumber.MultiRouter[batch]{
+		SourceTargets: []address.Address{leaseProxyAddr},
+		SinkTargets:   []address.Address{versionAssignerAddr, leaseSenderAddr},
+		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
-		ToAddresses:   []address.Address{versionFilterAddr},
-		Stitch:        confluence.StitchLinear,
+	c.Exec(plumber.MultiRouter[batch]{
+		SourceTargets: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
+		SinkTargets:   []address.Address{versionFilterAddr},
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{versionFilterAddr},
-		ToAddresses:   []address.Address{feedbackSenderAddr, persistAddr},
-		Stitch:        confluence.StitchWeave,
+	c.Exec(plumber.MultiRouter[batch]{
+		SourceTargets: []address.Address{versionFilterAddr},
+		SinkTargets:   []address.Address{feedbackSenderAddr, persistAddr},
+		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: feedbackReceiverAddr,
-		ToAddr:   recoveryTransformAddr,
-		Capacity: 1,
-	})
+	c.Exec(plumber.UnaryRouter[batch]{
+		SourceTarget: feedbackReceiverAddr,
+		SinkTarget:   recoveryTransformAddr,
+		Capacity:     1,
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.MultiRouter[batch]{
-		FromAddresses: []address.Address{persistAddr, recoveryTransformAddr},
-		ToAddresses:   []address.Address{emitterAddr},
-		Stitch:        confluence.StitchLinear,
+	c.Exec(plumber.MultiRouter[batch]{
+		SourceTargets: []address.Address{persistAddr, recoveryTransformAddr},
+		SinkTargets:   []address.Address{emitterAddr},
+		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
-	})
+	}.PreRoute(pipe))
 
-	builder.Route(confluence.UnaryRouter[batch]{
-		FromAddr: emitterAddr,
-		ToAddr:   operationSenderAddr,
-		Capacity: 1,
-	})
+	c.Exec(plumber.UnaryRouter[batch]{
+		SourceTarget: emitterAddr,
+		SinkTarget:   operationSenderAddr,
+		Capacity:     1,
+	}.PreRoute(pipe))
 
-	ctx.Shutdown.Go(func(sig chan shutdown.Signal) error {
-		for {
-			select {
-			case <-sig:
-				return nil
-			case err = <-ctx.ErrC:
-				cfg.Logger.Errorw("kv pipeline error", "err", err)
-			}
-		}
-	})
+	if c.Error() != nil {
+		panic(c.Error())
+	}
 
-	pipeline.Flow(ctx)
+	pipe.Flow(ctx)
 
-	return &kv{Config: cfg, KV: cfg.Engine, exec: exec}, builder.Error()
+	return &kv{
+		Config: cfg,
+		KV:     cfg.Engine,
+		exec:   exec,
+	}, nil
 }

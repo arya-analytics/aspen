@@ -3,8 +3,7 @@ package kv
 import (
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/x/alamos"
-	kv_ "github.com/arya-analytics/x/kv"
-	"github.com/arya-analytics/x/shutdown"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 	"time"
@@ -24,15 +23,12 @@ type Config struct {
 	// LeaseTransport is used to send lease operations between nodes.
 	// [Required]
 	LeaseTransport LeaseTransport
-	// Shutdown is used to gracefully shutdown the cluster.
-	// [Not Required]
-	Shutdown shutdown.Shutdown
 	// Logger is the witness of it all.
 	// [Not Required]
 	Logger *zap.SugaredLogger
 	// Engine is the underlying key-value engine that KV writes its operations to.
 	//[Required]
-	Engine kv_.KV
+	Engine kvx.KV
 	// GossipInterval is how often a node initiates gossip with a peer.
 	// [Not Required]
 	GossipInterval time.Duration
@@ -54,9 +50,6 @@ func (cfg Config) Merge(def Config) Config {
 	}
 	if cfg.LeaseTransport == nil {
 		cfg.LeaseTransport = def.LeaseTransport
-	}
-	if cfg.Shutdown == nil {
-		cfg.Shutdown = def.Shutdown
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = def.Logger

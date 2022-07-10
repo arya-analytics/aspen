@@ -5,11 +5,11 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/x/address"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 )
 
 type Transport interface {
-	Configure(addr address.Address, sd shutdown.Shutdown) error
+	Configure(ctx signal.Context, addr address.Address) error
 	Pledge() pledge.Transport
 	Cluster() gossip.Transport
 	Operations() kv.OperationsTransport

@@ -1,37 +1,43 @@
 package aspen
 
 import (
+	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/kv/pebblekv"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/pebble"
 )
 
 func Open(dirname string, addr address.Address, peers []address.Address, opts ...Option) (DB, error) {
+	ctx, shutdown := signal.WithCancel(context.Background())
+
 	o := newOptions(dirname, addr, peers, opts...)
+
+	signal.LogTransient(ctx, o.logger)
 
 	if err := openKV(o); err != nil {
 		return nil, err
 	}
 
-	if err := o.transport.Configure(o.addr, o.shutdown); err != nil {
+	if err := configureTransport(ctx, o); err != nil {
 		return nil, err
 	}
 
-	clust, err := cluster.Join(o.ctx, o.addr, o.peerAddresses, o.cluster)
+	clust, err := cluster.Join(ctx, o.addr, o.peerAddresses, o.cluster)
 	if err != nil {
 		return nil, err
 	}
 
 	o.kv.Cluster = clust
 
-	kve, err := kv.Open(o.kv)
+	kve, err := kv.Open(ctx, o.kv)
 	if err != nil {
 		return nil, err
 	}
 
-	return &db{Cluster: clust, KV: kve, options: o}, nil
+	return &db{Cluster: clust, KV: kve, wg: ctx, shutdown: shutdown, options: o}, nil
 }
 
 func openKV(opts *options) error {
@@ -41,5 +47,17 @@ func openKV(opts *options) error {
 		opts.cluster.Storage = opts.kv.Engine
 		return err
 	}
+	return nil
+}
+
+func configureTransport(ctx signal.Context, o *options) error {
+	if err := o.transport.Configure(ctx, o.addr); err != nil {
+		return err
+	}
+	o.cluster.Gossip.Transport = o.transport.Cluster()
+	o.cluster.Pledge.Transport = o.transport.Pledge()
+	o.kv.OperationsTransport = o.transport.Operations()
+	o.kv.LeaseTransport = o.transport.Lease()
+	o.kv.FeedbackTransport = o.transport.Feedback()
 	return nil
 }

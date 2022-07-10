@@ -6,6 +6,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/kv/memkv"
+	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
 	"go/types"
 )
@@ -30,8 +31,9 @@ func NewBuilder(baseKVCfg kv.Config, baseClusterCfg cluster.Config) *Builder {
 	}
 }
 
-func (b *Builder) New(kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV, error) {
-	clust, err := b.Builder.New(clusterCfg)
+func (b *Builder) New(ctx signal.Context, kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV,
+	error) {
+	clust, err := b.Builder.New(ctx, clusterCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -41,10 +43,10 @@ func (b *Builder) New(kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV, error)
 	}
 	kvCfg.Cluster = clust
 	addr := clust.Host().Address
-	kvCfg.OperationsTransport = b.OpNet.Route(addr)
-	kvCfg.FeedbackTransport = b.FeedbackNet.Route(addr)
-	kvCfg.LeaseTransport = b.LeaseNet.Route(addr)
-	kve, err := kv.Open(kvCfg)
+	kvCfg.OperationsTransport = b.OpNet.RouteUnary(addr)
+	kvCfg.FeedbackTransport = b.FeedbackNet.RouteUnary(addr)
+	kvCfg.LeaseTransport = b.LeaseNet.RouteUnary(addr)
+	kve, err := kv.Open(ctx, kvCfg)
 	if err != nil {
 		return nil, err
 	}

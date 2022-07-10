@@ -6,6 +6,8 @@ import (
 	"github.com/arya-analytics/aspen/mock"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/filter"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	"go.uber.org/zap"
 	"sync"
 	"time"
@@ -158,8 +160,11 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 					builder := &mock.Builder{
 						PortRangeStart: 22546,
 						DataDir:        "./testdata",
-						DefaultOptions: []aspen.Option{aspen.WithLogger(logger), aspen.WithPropagationConfig(propConfig)},
-						Contexts:       make(map[aspen.NodeID]mock.Context),
+						DefaultOptions: []aspen.Option{
+							aspen.WithLogger(logger),
+							aspen.WithPropagationConfig(propConfig),
+						},
+						Nodes: make(map[aspen.NodeID]mock.NodeInfo),
 					}
 
 					By("Forking the databases")
@@ -169,7 +174,7 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 					}
 
 					By("Assigning the correct generation")
-					ctx := builder.Contexts[2]
+					ctx := builder.Nodes[2]
 					Expect(ctx.DB.Host().Heartbeat.Generation).To(Equal(uint32(0)))
 
 					By("Closing the database")
@@ -187,15 +192,15 @@ var _ = Describe("Membership", Serial, Ordered, func() {
 
 					By("Propagating the incremented heartbeat to other nodes")
 					time.Sleep(100 * time.Millisecond)
-					ctx1 := builder.Contexts[1]
+					ctx1 := builder.Nodes[1]
 					n2, err := ctx1.DB.Node(2)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(n2.State).To(Equal(aspen.Healthy))
 					Expect(n2.Heartbeat.Generation).To(Equal(uint32(1)))
 
 					By("Closing the databases")
-					Expect(builder.Contexts[1].DB.Close()).To(Succeed())
-					Expect(builder.Contexts[3].DB.Close()).To(Succeed())
+					Expect(builder.Nodes[1].DB.Close()).To(Succeed())
+					Expect(builder.Nodes[3].DB.Close()).To(Succeed())
 					Expect(db.Close()).To(Succeed())
 					Expect(builder.Cleanup()).To(Succeed())
 				})

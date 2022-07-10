@@ -1,13 +1,12 @@
 package aspen
 
 import (
-	"context"
 	"github.com/arya-analytics/aspen/internal/cluster"
 	"github.com/arya-analytics/aspen/internal/kv"
 	"github.com/arya-analytics/aspen/transport/grpc"
 	"github.com/arya-analytics/x/address"
 	"github.com/arya-analytics/x/alamos"
-	"github.com/arya-analytics/x/shutdown"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/cockroachdb/pebble/vfs"
 	"go.uber.org/zap"
 	"time"
@@ -16,8 +15,6 @@ import (
 type Option func(*options)
 
 type options struct {
-	// ctx is the global context for the DB.
-	ctx context.Context
 	// dirname is the directory where aspen will store its data.
 	// this option is ignored if a custom kv.Config.Engine is set.
 	dirname string
@@ -25,8 +22,6 @@ type options struct {
 	addr address.Address
 	// peerAddresses sets the addresses for the peers of the host node.
 	peerAddresses []address.Address
-	// shutdown is used to safely shutdown aspen operations.
-	shutdown shutdown.Shutdown
 	// cluster gives the configuration for gossiping cluster state.
 	cluster cluster.Config
 	// kv gives the configuration for KV options.
@@ -72,7 +67,7 @@ func WithExperiment(experiment alamos.Experiment) Option {
 
 // WithEngine sets the underlying KV engine that aspen uses to store its data. When using this option, the caller
 // should transfer all responsibility for executing queries on the engine to aspen.
-func WithEngine(engine kv.KV) Option { return func(o *options) { o.kv.Engine = engine } }
+func WithEngine(engine kvx.KV) Option { return func(o *options) { o.kv.Engine = engine } }
 
 // MemBacked sets aspen to use a memory-backed KV engine. This option is ignored if a custom KV engine is set (using
 // WithEngine).
@@ -115,12 +110,18 @@ func WithPropagationConfig(config PropagationConfig) Option {
 	}
 }
 
+// WithTransport sets a custom network transport.
+func WithTransport(transport Transport) Option {
+	return func(o *options) {
+		o.transport = transport
+	}
+}
+
 func newOptions(dirname string, addr address.Address, peers []address.Address, opts ...Option) *options {
 	o := &options{}
 	o.dirname = dirname
 	o.addr = addr
 	o.peerAddresses = peers
-	o.shutdown = shutdown.New()
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -131,12 +132,6 @@ func newOptions(dirname string, addr address.Address, peers []address.Address, o
 
 func mergeDefaultOptions(o *options) {
 	def := defaultOptions()
-
-	// |||| CONTEXT ||||
-
-	if o.ctx == nil {
-		o.ctx = def.ctx
-	}
 
 	// |||| DIRNAME ||||
 
@@ -154,23 +149,11 @@ func mergeDefaultOptions(o *options) {
 
 	// |||| SHUTDOWN ||||
 
-	if o.shutdown == nil {
-		o.shutdown = def.shutdown
-	}
-
-	o.cluster.Shutdown = o.shutdown
-	o.kv.Shutdown = o.shutdown
-
 	// |||| TRANSPORT ||||
 
 	if o.transport == nil {
 		o.transport = def.transport
 	}
-	o.cluster.Gossip.Transport = o.transport.Cluster()
-	o.cluster.Pledge.Transport = o.transport.Pledge()
-	o.kv.OperationsTransport = o.transport.Operations()
-	o.kv.LeaseTransport = o.transport.Lease()
-	o.kv.FeedbackTransport = o.transport.Feedback()
 
 	// |||| LOGGER ||||
 
@@ -189,12 +172,10 @@ func mergeDefaultOptions(o *options) {
 func defaultOptions() *options {
 	logger, _ := zap.NewProduction()
 	return &options{
-		ctx:       context.Background(),
 		dirname:   "",
 		cluster:   cluster.DefaultConfig(),
 		kv:        kv.DefaultConfig(),
 		transport: grpc.New(),
 		logger:    logger.Sugar(),
-		shutdown:  shutdown.New(),
 	}
 }

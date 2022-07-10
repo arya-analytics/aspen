@@ -3,21 +3,22 @@ package kv
 import (
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/errutil"
-	kv_ "github.com/arya-analytics/x/kv"
+	kvx "github.com/arya-analytics/x/kv"
+	"github.com/arya-analytics/x/signal"
 )
 
 type persist struct {
 	Config
-	confluence.Transform[batch]
+	confluence.LinearTransform[batch, batch]
 }
 
 func newPersist(cfg Config) segment {
 	ps := &persist{Config: cfg}
-	ps.Transform.Transform = ps.persist
+	ps.ApplyTransform = ps.persist
 	return ps
 }
 
-func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
+func (ps *persist) persist(ctx signal.Context, b batch) (batch, bool, error) {
 	var accepted batch
 	c := errutil.NewCatchSimple(errutil.WithHooks(errutil.NewPipeHook(b.errors)))
 	ps.Logger.Debugw("persisting batch", "host", ps.Cluster.HostID(), "batch", len(b.operations))
@@ -32,7 +33,7 @@ func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 			if err != nil {
 				return err
 			}
-			if err = kv_.Flush(ps.Engine, key, op.Digest()); err != nil {
+			if err = kvx.Flush(ps.Engine, key, op.Digest()); err != nil {
 				return err
 			}
 			accepted.operations = append(accepted.operations, op)
@@ -42,5 +43,5 @@ func (ps *persist) persist(ctx confluence.Context, b batch) (batch, bool) {
 	if b.errors != nil {
 		b.errors <- c.Error()
 	}
-	return accepted, true
+	return accepted, true, nil
 }

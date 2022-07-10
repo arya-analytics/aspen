@@ -1,5 +1,5 @@
 // Package store exposes a simple copy-on-read store for managing cluster state.
-// ToAddr create a new store, call store.New().
+// SinkTarget create a new store, call store.New().
 package store
 
 import (

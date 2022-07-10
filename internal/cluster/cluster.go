@@ -1,6 +1,6 @@
 // Package cluster provides an interface for joining a cluster of nodes and exchanging state through an SI gossip model.
 // Nodes can join the cluster without needing to know all members. Cluster will automatically manage the membership of
-// new nodes by assigning them unique IDs and keeping them in sync with their peers. ToAddr Join a cluster, simply use
+// new nodes by assigning them unique IDs and keeping them in sync with their peers. SinkTarget Join a cluster, simply use
 // cluster.Join.
 package cluster
 
@@ -15,7 +15,7 @@ import (
 	"github.com/arya-analytics/x/iter"
 	"github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/observe"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
 )
@@ -28,17 +28,12 @@ var ErrNotFound = errors.New("[cluster] - node not found")
 
 // Cluster represents a group of nodes that can exchange their state with each other.
 type Cluster interface {
-	// Host returns the host Node (i.e. the node that Host is called on).
-	Host() node.Node
-	// HostID returns the ID of the host node.
-	HostID() node.ID
+	HostResolver
 	// Nodes returns a node.Group of all nodes in the cluster. The returned map is not safe to modify. To modify,
 	// use node.Group.Copy().
 	Nodes() node.Group
 	// Node returns the member Node with the given ID.
 	Node(id node.ID) (node.Node, error)
-	// Resolve resolves the address of a node with the given ID.
-	Resolve(id node.ID) (address.Address, error)
 	// Config returns the configuration parameters used by the cluster.
 	Config() Config
 	// Observable returns can be used to monitor changes to the cluster state. Be careful not to modify the
@@ -46,12 +41,30 @@ type Cluster interface {
 	observe.Observable[State]
 }
 
+// Resolver is used to resolve a reachable address for a node in the cluster.
+type Resolver interface {
+	// Resolve resolves the address of a node with the given ID.
+	Resolve(id node.ID) (address.Address, error)
+}
+
+type Host interface {
+	// Host returns the host Node (i.e. the node that Host is called on).
+	Host() node.Node
+	// HostID returns the ID of the host node.
+	HostID() node.ID
+}
+
+type HostResolver interface {
+	Resolver
+	Host
+}
+
 // Join joins the host node to the cluster and begins gossiping its state. The node will spread addr as its listening
 // address. A set of peer addresses (other nodes in the cluster) must be provided when joining an existing cluster
 // for the first time. If restarting a node that is already a member of a cluster, the peer addresses can be left empty;
 // Join will attempt to load the existing cluster state from storage (see Config.Storage and Config.StorageKey).
 // If provisioning a new cluster, ensure that all storage for previous clusters is removed and provide no peers.
-func Join(ctx context.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
+func Join(ctx signal.Context, addr address.Address, peers []address.Address, cfg Config) (Cluster, error) {
 	cfg = cfg.Merge(DefaultConfig())
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -111,7 +124,8 @@ func Join(ctx context.Context, addr address.Address, peers []address.Address, cf
 	// After we've successfully pledged, we can start gossiping cluster state.
 	g.GoGossip(ctx)
 
-	goFlushStore(cfg, s)
+	// Periodically persist the cluster state.
+	goFlushStore(ctx, cfg, s)
 
 	return c, nil
 }
@@ -183,25 +197,19 @@ func gossipInitialState(
 	return nil
 }
 
-func goFlushStore(cfg Config, s store.Store) {
-	errC := make(chan error, 5)
+func goFlushStore(ctx signal.Context, cfg Config, s store.Store) {
 	if cfg.Storage != nil {
 		flush := &observe.FlushSubscriber[State]{
+			Errors:      ctx,
 			Key:         cfg.StorageKey,
 			MinInterval: cfg.StorageFlushInterval,
 			Store:       cfg.Storage,
-			ErrC:        errC,
 		}
 		s.OnChange(flush.Flush)
-		cfg.Shutdown.Go(func(sig chan shutdown.Signal) error {
-			for {
-				select {
-				case <-sig:
-					return nil
-				case err := <-errC:
-					cfg.Logger.Error("failed to flush state", zap.Error(err))
-				}
-			}
+		ctx.Go(func(ctx signal.Context) error {
+			<-ctx.Done()
+			flush.FlushSync(s.CopyState())
+			return ctx.Err()
 		})
 	}
 }

@@ -9,7 +9,7 @@ import (
 	aspenv1 "github.com/arya-analytics/aspen/transport/grpc/gen/proto/go/v1"
 	"github.com/arya-analytics/x/address"
 	grpcx "github.com/arya-analytics/x/grpc"
-	"github.com/arya-analytics/x/shutdown"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/version"
 	"github.com/cockroachdb/errors"
 	"go/types"
@@ -74,7 +74,7 @@ func (p *pledgeTransport) String() string { return "grpc" }
 
 // |||||| CLUSTER ||||||
 
-// clusterGossip implements the grpc.AbstractTranslatedTransport and the grpc.Translator interfaces.
+// clusterGossip implements the grpc.AbstractTranslatedTransport and the grpc.CoreTranslator interfaces.
 type clusterGossip struct {
 	aspenv1.UnimplementedClusterGossipServiceServer
 	core
@@ -339,7 +339,7 @@ func (t *transport) Lease() kv.LeaseTransport { return t.lease }
 
 func (t *transport) Feedback() kv.FeedbackTransport { return t.feedback }
 
-func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error {
+func (t *transport) Configure(ctx signal.Context, addr address.Address) error {
 	server := grpc.NewServer()
 	aspenv1.RegisterPledgeServiceServer(server, t.pledge)
 	aspenv1.RegisterLeaseServiceServer(server, t.lease)
@@ -350,7 +350,7 @@ func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error 
 	if err != nil {
 		return err
 	}
-	sd.Go(func(sig chan shutdown.Signal) (err error) {
+	ctx.Go(func(ctx signal.Context) (err error) {
 		go func() {
 			err = server.Serve(lis)
 		}()
@@ -358,8 +358,8 @@ func (t *transport) Configure(addr address.Address, sd shutdown.Shutdown) error 
 			return err
 		}
 		defer server.Stop()
-		<-sig
-		return nil
+		<-ctx.Done()
+		return ctx.Err()
 	})
 	return nil
 }

@@ -2,6 +2,7 @@ package kv
 
 import (
 	"github.com/arya-analytics/x/confluence"
+	"github.com/arya-analytics/x/signal"
 	"github.com/arya-analytics/x/store"
 )
 
@@ -9,6 +10,12 @@ type emitter struct {
 	Config
 	store.Observable[operationMap]
 	confluence.Emitter[batch]
+	confluence.UnarySink[batch]
+}
+
+func (e *emitter) Flow(ctx signal.Context, opts ...confluence.Option) {
+	e.Emitter.Flow(ctx, opts...)
+	e.UnarySink.Flow(ctx, opts...)
 }
 
 func newEmitter(cfg Config) *emitter {
@@ -19,17 +26,19 @@ func newEmitter(cfg Config) *emitter {
 		Config: cfg,
 	}
 	s.Emitter.Emit = s.Emit
-	s.Emitter.Store = s.Store
+	s.UnarySink.Sink = s.Store
 	s.Emitter.Interval = cfg.GossipInterval
 	return s
 }
 
-func (u *emitter) Store(_ confluence.Context, batch batch) {
-	snap := u.Observable.CopyState()
+func (e *emitter) Store(_ signal.Context, batch batch) error {
+	snap := e.Observable.CopyState()
 	snap.Merge(batch.operations)
-	u.Observable.SetState(snap)
+	e.Observable.SetState(snap)
+	return nil
 }
 
-func (u *emitter) Emit(_ confluence.Context) batch {
-	return batch{operations: u.Observable.ReadState().Operations().whereState(infected)}
+func (e *emitter) Emit(_ signal.Context) (batch, error) {
+	b := batch{operations: e.Observable.ReadState().Operations().whereState(infected)}
+	return b, nil
 }
