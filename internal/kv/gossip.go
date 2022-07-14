@@ -6,7 +6,6 @@ import (
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/signal"
-	"github.com/arya-analytics/x/store"
 	"github.com/arya-analytics/x/transport"
 	"github.com/cockroachdb/errors"
 	"go.uber.org/zap"
@@ -15,20 +14,13 @@ import (
 
 // |||||| OPERATION ||||||
 
-type OperationMessage struct {
-	Sender     node.ID
-	Operations Operations
-}
-
-func (o OperationMessage) toBatch() batch { return batch{sender: o.Sender, operations: o.Operations} }
-
-type OperationsTransport = transport.Unary[OperationMessage, OperationMessage]
+type BatchTransport = transport.Unary[BatchRequest, BatchRequest]
 
 // |||| SENDER ||||
 
 type operationSender struct {
 	Config
-	confluence.LinearTransform[batch, batch]
+	confluence.LinearTransform[BatchRequest, BatchRequest]
 }
 
 func newOperationSender(cfg Config) segment {
@@ -37,64 +29,57 @@ func newOperationSender(cfg Config) segment {
 	return os
 }
 
-func (g *operationSender) send(ctx signal.Context, b batch) (batch, bool, error) {
-	// If we have no operations to propagate, it's best to avoid the network chatter.
-	if len(b.operations) == 0 {
-		return batch{}, false, nil
+func (g *operationSender) send(ctx signal.Context, sync BatchRequest) (BatchRequest, bool, error) {
+	// If we have no Operations to propagate, it's best to avoid the network chatter.
+	if sync.empty() {
+		return sync, false, nil
 	}
-
 	hostID := g.Cluster.HostID()
 	peer := gossip.RandomPeer(g.Cluster.Nodes(), hostID)
 	if peer.Address == "" {
 		g.Logger.Warnw("no healthy nodes to gossip with", "host", hostID)
-		return batch{}, false, nil
+		return sync, false, nil
 	}
-
-	g.Logger.Debugw("gossiping operations",
+	g.Logger.Debugw("gossiping Operations",
 		"host", hostID,
 		"peer", peer.ID,
-		"count", len(b.operations),
+		"size", sync.size(),
 	)
-
-	sync := OperationMessage{Operations: b.operations, Sender: hostID}
+	sync.Sender = hostID
 	ack, err := g.OperationsTransport.Send(ctx, peer.Address, sync)
 	if err != nil {
-		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip operations")
+		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip Operations")
 	}
-
-	// If we have no operations to persist, avoid the pipeline overhead.
-	if len(ack.Operations) == 0 {
-		return b, false, nil
-	}
-
-	return ack.toBatch(), true, nil
+	// If we have no Operations to apply, avoid the pipeline overhead.
+	return ack, !ack.empty(), nil
 }
 
 // |||| RECEIVER ||||
 
 type operationReceiver struct {
 	Config
-	store.Store[operationMap]
-	confluence.AbstractUnarySource[batch]
+	store store
+	confluence.AbstractUnarySource[BatchRequest]
 	confluence.EmptyFlow
 }
 
-func newOperationReceiver(cfg Config, store store.Store[operationMap]) source {
-	or := &operationReceiver{Config: cfg, Store: store}
+func newOperationReceiver(cfg Config, s store) source {
+	or := &operationReceiver{Config: cfg, store: s}
 	or.OperationsTransport.Handle(or.handle)
 	return or
 }
 
-func (g *operationReceiver) handle(ctx context.Context, message OperationMessage) (OperationMessage, error) {
-	b := message.toBatch()
+func (g *operationReceiver) handle(ctx context.Context, req BatchRequest) (BatchRequest, error) {
 	hostID := g.Cluster.HostID()
-	g.Logger.Debug("received gossip", zap.Stringer("peer", message.Sender), zap.Stringer("host", hostID))
+	g.Logger.Debug("received gossip", zap.Stringer("peer", req.Sender), zap.Stringer("host", hostID))
 	select {
 	case <-ctx.Done():
-		return OperationMessage{}, ctx.Err()
-	case g.Out.Inlet() <- b:
+		return BatchRequest{}, ctx.Err()
+	case g.Out.Inlet() <- req:
 	}
-	return OperationMessage{Operations: g.Store.ReadState().Operations(), Sender: hostID}, nil
+	br := g.store.ReadState().toBatchRequest()
+	br.Sender = g.Cluster.HostID()
+	return br, nil
 }
 
 // |||||| FEEDBACK ||||||
@@ -104,17 +89,13 @@ type FeedbackMessage struct {
 	Digests Digests
 }
 
-func (f FeedbackMessage) toBatch() batch {
-	return batch{sender: f.Sender, operations: f.Digests.Operations()}
-}
-
 type FeedbackTransport = transport.Unary[FeedbackMessage, types.Nil]
 
 // |||| SENDER ||||
 
 type feedbackSender struct {
 	Config
-	confluence.UnarySink[batch]
+	confluence.UnarySink[BatchRequest]
 }
 
 func newFeedbackSender(cfg Config) sink {
@@ -123,13 +104,13 @@ func newFeedbackSender(cfg Config) sink {
 	return fs
 }
 
-func (f *feedbackSender) send(ctx signal.Context, b batch) error {
-	msg := FeedbackMessage{Sender: f.Cluster.Host().ID, Digests: b.operations.digests()}
-	sender, _ := f.Cluster.Node(b.sender)
+func (f *feedbackSender) send(ctx signal.Context, bd BatchRequest) error {
+	msg := FeedbackMessage{Sender: f.Cluster.Host().ID, Digests: bd.digests()}
+	sender, _ := f.Cluster.Node(bd.Sender)
 	f.Logger.Debugw("gossiping feedback",
 		"host", f.Cluster.HostID(),
-		"peer", b.sender,
-		"count", len(msg.Digests),
+		"peer", bd.Sender,
+		"size", len(msg.Digests),
 	)
 	if _, err := f.FeedbackTransport.Send(context.TODO(), sender.Address, msg); err != nil {
 		ctx.Transient() <- errors.Wrap(err, "[kv] - failed to gossip feedback")
@@ -141,7 +122,7 @@ func (f *feedbackSender) send(ctx signal.Context, b batch) error {
 
 type feedbackReceiver struct {
 	Config
-	confluence.AbstractUnarySource[batch]
+	confluence.AbstractUnarySource[BatchRequest]
 	confluence.EmptyFlow
 }
 
@@ -153,6 +134,6 @@ func newFeedbackReceiver(cfg Config) source {
 
 func (f *feedbackReceiver) handle(ctx context.Context, message FeedbackMessage) (types.Nil, error) {
 	f.Logger.Debugw("received feedback", "peer", message.Sender, "host", f.Cluster.HostID())
-	f.Out.Inlet() <- message.toBatch()
+	f.Out.Inlet() <- message.Digests.toRequest()
 	return types.Nil{}, nil
 }

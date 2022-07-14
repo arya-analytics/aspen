@@ -67,7 +67,7 @@ func WithExperiment(experiment alamos.Experiment) Option {
 
 // WithEngine sets the underlying KV engine that aspen uses to store its data. When using this option, the caller
 // should transfer all responsibility for executing queries on the engine to aspen.
-func WithEngine(engine kvx.KV) Option { return func(o *options) { o.kv.Engine = engine } }
+func WithEngine(engine kvx.DB) Option { return func(o *options) { o.kv.Engine = engine } }
 
 // MemBacked sets aspen to use a memory-backed KV engine. This option is ignored if a custom KV engine is set (using
 // WithEngine).
@@ -139,7 +139,7 @@ func mergeDefaultOptions(o *options) {
 		o.dirname = def.dirname
 	}
 
-	// |||| KV ||||
+	// |||| DB ||||
 
 	o.kv = o.kv.Merge(def.kv)
 

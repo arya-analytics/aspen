@@ -12,7 +12,7 @@ type Transport interface {
 	Configure(ctx signal.Context, addr address.Address) error
 	Pledge() pledge.Transport
 	Cluster() gossip.Transport
-	Operations() kv.OperationsTransport
+	Operations() kv.BatchTransport
 	Lease() kv.LeaseTransport
 	Feedback() kv.FeedbackTransport
 }

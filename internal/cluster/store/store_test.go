@@ -35,7 +35,7 @@ var _ = Describe("Store", func() {
 
 	})
 
-	Describe("Merge", func() {
+	Describe("Apply", func() {
 
 		It("Should add nonexistent nodes", func() {
 			s.Merge(node.Group{1: node.Node{ID: 1}})

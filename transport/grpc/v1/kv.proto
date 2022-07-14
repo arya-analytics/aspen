@@ -21,12 +21,13 @@ message OperationDigest {
 
 
 service OperationService {
-  rpc Operation(OperationMessage) returns (OperationMessage);
+  rpc Operation(BatchRequest) returns (BatchRequest);
 }
 
-message OperationMessage {
+message BatchRequest {
   uint32 sender = 1;
-  repeated Operation operations = 2;
+  uint32 leaseholder = 2;
+  repeated Operation operations = 3;
 }
 
 message Operation {
@@ -38,9 +39,5 @@ message Operation {
 }
 
 service LeaseService {
-  rpc Forward(LeaseMessage) returns (google.protobuf.Empty);
-}
-
-message LeaseMessage {
-  Operation operation = 1;
+  rpc Forward(BatchRequest) returns (google.protobuf.Empty);
 }

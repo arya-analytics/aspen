@@ -11,24 +11,24 @@ import (
 
 // Config is the configuration for the aspen kv service. For default values, see DefaultConfig().
 type Config struct {
-	// Cluster is the cluster that the KV will use to communicate with other databases.
+	// Cluster is the cluster that the DB will use to communicate with other databases.
 	// [Required]
 	Cluster cluster.Cluster
-	// OperationsTransport is used to send key-value operations between nodes.
+	// OperationsTransport is used to send key-value Operations between nodes.
 	// [Required]
-	OperationsTransport OperationsTransport
+	OperationsTransport BatchTransport
 	// FeedbackTransport is used to send gossip feedback between nodes.
 	// [Required]
 	FeedbackTransport FeedbackTransport
-	// LeaseTransport is used to send lease operations between nodes.
+	// LeaseTransport is used to send leaseAlloc Operations between nodes.
 	// [Required]
 	LeaseTransport LeaseTransport
 	// Logger is the witness of it all.
 	// [Not Required]
 	Logger *zap.SugaredLogger
-	// Engine is the underlying key-value engine that KV writes its operations to.
+	// Engine is the underlying key-value engine that DB writes its Operations to.
 	//[Required]
-	Engine kvx.KV
+	Engine kvx.DB
 	// GossipInterval is how often a node initiates gossip with a peer.
 	// [Not Required]
 	GossipInterval time.Duration
@@ -71,13 +71,13 @@ func (cfg Config) Validate() error {
 		return errors.AssertionFailedf("[kv] - a valid cluster must be provided")
 	}
 	if cfg.OperationsTransport == nil {
-		return errors.AssertionFailedf("[kv] - operations transport is required")
+		return errors.AssertionFailedf("[kv] - Operations transport is required")
 	}
 	if cfg.FeedbackTransport == nil {
 		return errors.AssertionFailedf("[kv]  - feedback transport is required")
 	}
 	if cfg.LeaseTransport == nil {
-		return errors.AssertionFailedf("[kv] lease transport is required")
+		return errors.AssertionFailedf("[kv] leaseAlloc transport is required")
 	}
 	if cfg.Engine == nil {
 		return errors.AssertionFailedf("[kv] - engine is required")

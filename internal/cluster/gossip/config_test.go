@@ -9,7 +9,7 @@ import (
 )
 
 var _ = Describe("Config", func() {
-	Describe("Merge", func() {
+	Describe("Apply", func() {
 		It("Should correctly merge a default configuration", func() {
 			def := gossip.Config{
 				Interval: 1 * time.Second,

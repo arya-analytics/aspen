@@ -15,8 +15,8 @@ import (
 type Network struct {
 	pledge     *tmock.Network[node.ID, node.ID]
 	cluster    *tmock.Network[gossip.Message, gossip.Message]
-	operations *tmock.Network[kv.OperationMessage, kv.OperationMessage]
-	lease      *tmock.Network[kv.LeaseMessage, types.Nil]
+	operations *tmock.Network[kv.BatchRequest, kv.BatchRequest]
+	lease      *tmock.Network[kv.BatchRequest, types.Nil]
 	feedback   *tmock.Network[kv.FeedbackMessage, types.Nil]
 }
 
@@ -24,8 +24,8 @@ func NewNetwork() *Network {
 	return &Network{
 		pledge:     tmock.NewNetwork[node.ID, node.ID](),
 		cluster:    tmock.NewNetwork[gossip.Message, gossip.Message](),
-		operations: tmock.NewNetwork[kv.OperationMessage, kv.OperationMessage](),
-		lease:      tmock.NewNetwork[kv.LeaseMessage, types.Nil](),
+		operations: tmock.NewNetwork[kv.BatchRequest, kv.BatchRequest](),
+		lease:      tmock.NewNetwork[kv.BatchRequest, types.Nil](),
 		feedback:   tmock.NewNetwork[kv.FeedbackMessage, types.Nil](),
 	}
 }
@@ -37,8 +37,8 @@ type transport struct {
 	net        *Network
 	pledge     *tmock.Unary[node.ID, node.ID]
 	cluster    *tmock.Unary[gossip.Message, gossip.Message]
-	operations *tmock.Unary[kv.OperationMessage, kv.OperationMessage]
-	lease      *tmock.Unary[kv.LeaseMessage, types.Nil]
+	operations *tmock.Unary[kv.BatchRequest, kv.BatchRequest]
+	lease      *tmock.Unary[kv.BatchRequest, types.Nil]
 	feedback   *tmock.Unary[kv.FeedbackMessage, types.Nil]
 }
 
@@ -59,7 +59,7 @@ func (t *transport) Pledge() pledge.Transport { return t.pledge }
 func (t *transport) Cluster() gossip.Transport { return t.cluster }
 
 // Operations implements aspen.Transport.
-func (t *transport) Operations() kv.OperationsTransport { return t.operations }
+func (t *transport) Operations() kv.BatchTransport { return t.operations }
 
 // Lease implements aspen.Transport.
 func (t *transport) Lease() kv.LeaseTransport { return t.lease }
