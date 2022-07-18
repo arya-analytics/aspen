@@ -39,7 +39,7 @@ func (b *Builder) New(ctx signal.Context, kvCfg kv.Config, clusterCfg cluster.Co
 	}
 	kvCfg = kvCfg.Merge(b.BaseCfg)
 	if kvCfg.Engine == nil {
-		kvCfg.Engine = memkv.Open()
+		kvCfg.Engine = memkv.New()
 	}
 	kvCfg.Cluster = clust
 	addr := clust.Host().Address

@@ -86,7 +86,7 @@ var _ = Describe("Store", func() {
 	Describe("Flush and Load", func() {
 
 		It("Should correctly sync the store's state to storage", func() {
-			kve := memkv.Open()
+			kve := memkv.New()
 			s.SetHost(node.Node{ID: 1})
 			s.Set(node.Node{ID: 2})
 			Expect(kv.Flush(kve, []byte("key"), s)).To(Succeed())

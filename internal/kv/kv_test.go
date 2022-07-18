@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var _ = Describe("DB", func() {
+var _ = Describe("txn", func() {
 	var (
 		logger   *zap.SugaredLogger
 		builder  *kvmock.Builder
@@ -46,7 +46,7 @@ var _ = Describe("DB", func() {
 
 	Describe("RouteStream", func() {
 
-		It("Should open a new DB storeSink without error", func() {
+		It("Should open a new txn storeSink without error", func() {
 			kv, err := builder.New(kvCtx, kv.Config{}, cluster.Config{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(kv).ToNot(BeNil())

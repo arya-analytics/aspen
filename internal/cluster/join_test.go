@@ -55,7 +55,7 @@ var _ = Describe("Join", func() {
 					Transport: gossipT1,
 					Interval:  100 * time.Millisecond,
 				},
-				Storage: memkv.Open(),
+				Storage: memkv.New(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -79,7 +79,7 @@ var _ = Describe("Join", func() {
 					Transport: gossipT2,
 					Interval:  100 * time.Millisecond,
 				},
-				Storage: memkv.Open(),
+				Storage: memkv.New(),
 			},
 		)
 		Expect(err).ToNot(HaveOccurred())

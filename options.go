@@ -139,7 +139,7 @@ func mergeDefaultOptions(o *options) {
 		o.dirname = def.dirname
 	}
 
-	// |||| DB ||||
+	// |||| txn ||||
 
 	o.kv = o.kv.Merge(def.kv)
 
