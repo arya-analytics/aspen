@@ -74,7 +74,7 @@ func Join(ctx signal.Context, addr address.Address, peers []address.Address, cfg
 
 	// Attempt to open the cluster store from kv. It's ok if we don't find it.
 	s, err := openStore(cfg)
-	if err != nil && err != kv.ErrNotFound {
+	if err != nil && err != kv.NotFound {
 		return nil, err
 	}
 

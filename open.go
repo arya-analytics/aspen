@@ -37,7 +37,7 @@ func Open(dirname string, addr address.Address, peers []address.Address, opts ..
 		return nil, err
 	}
 
-	return &db{Cluster: clust, KV: kve, wg: ctx, shutdown: shutdown, options: o}, nil
+	return &db{Cluster: clust, DB: kve, wg: ctx, shutdown: shutdown, options: o}, nil
 }
 
 func openKV(opts *options) error {

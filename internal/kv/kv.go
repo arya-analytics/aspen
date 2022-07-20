@@ -2,70 +2,78 @@ package kv
 
 import (
 	"fmt"
-	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	"github.com/arya-analytics/x/confluence"
 	"github.com/arya-analytics/x/confluence/plumber"
 	"github.com/arya-analytics/x/errutil"
 	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/signal"
-	"github.com/cockroachdb/errors"
 )
 
-// Writer is a writable key-value store.
+// Writer is a writable key-value storeSink.
 type Writer interface {
-	// SetWithLease is similar to Set, but also takes an id for a leaseholder node.
-	// If the leaseholder node is not the host, the request will be forwarded to the
-	// leaseholder for execution. Only the leaseholder node will be able to perform
-	// set and delete operations on the requested key. It is safe to modify the contents
-	// of key and value after SetWithLease returns.
-	SetWithLease(key []byte, leaseholder node.ID, value []byte) error
-	// Writer represents the same interface to a typical key-value store.
-	// kv.Write.Set operations call SetWithLease internally and mark the leaseholder as
-	// the host.
+	// Writer represents the same interface to a typical key-value storeSink.
 	kvx.Writer
 }
 
 type (
-	// Reader is a readable key-value store.
+	// Reader is a readable key-value storeSink.
 	Reader = kvx.Reader
 )
 
-// KV is a readable and writable key-value store.
-type KV interface {
+type (
+	BatchWriter = kvx.BatchWriter
+)
+
+// DB is a readable and writable key-value storeSink.
+type DB interface {
 	Writer
 	Reader
-	// Stringer returns a description of the KV store.
+	BatchWriter
+	// Stringer returns a description of the DB storeSink.
 	fmt.Stringer
 }
 
 type kv struct {
-	kvx.KV
+	kvx.DB
 	Config
-	exec *executor
+	leaseAlloc *leaseAllocator
+	confluence.AbstractUnarySource[BatchRequest]
+	confluence.EmptyFlow
 }
 
-// SetWithLease implements KV.
-func (k *kv) SetWithLease(key []byte, leaseholder node.ID, value []byte) error {
-	return k.exec.setWithLease(key, leaseholder, value)
-}
-
-// Set implements KV.
-func (k *kv) Set(key []byte, value []byte, opts ...interface{}) error {
-	lease := DefaultLeaseholder
-	if len(opts) == 1 {
-		l, ok := opts[0].(node.ID)
-		if !ok {
-			return errors.New("[aspen] - leaseholder option must be of type node.ID")
-		}
-		lease = l
+// Set implements DB.
+func (k *kv) Set(key []byte, value []byte, maybeLease ...interface{}) error {
+	b := k.NewBatch()
+	if err := b.Set(key, value, maybeLease...); err != nil {
+		return err
 	}
-	return k.SetWithLease(key, lease, value)
+	return b.Commit()
 }
 
-// Delete implements KV.
-func (k *kv) Delete(key []byte) error { return k.exec.delete(key) }
+// Delete implements DB.
+func (k *kv) Delete(key []byte) error {
+	b := k.NewBatch()
+	if err := b.Delete(key); err != nil {
+		return err
+	}
+	return b.Commit()
+}
 
-// String implements KV.
+func (k *kv) apply(b []BatchRequest) (err error) {
+	c := batchCoordinator{}
+	for _, bd := range b {
+		c.add(&bd)
+		k.Out.Inlet() <- bd
+	}
+	return c.wait()
+}
+
+func (k *kv) NewBatch() kvx.Batch {
+	return &batch{apply: k.apply, lease: k.leaseAlloc, Batch: k.DB.NewBatch()}
+}
+
+// String implements DB.
 func (k *kv) String() string {
 	return fmt.Sprintf("aspen.kv{} backed by %s", k.Config.Engine)
 }
@@ -73,8 +81,9 @@ func (k *kv) String() string {
 const (
 	versionFilterAddr     = "versionFilter"
 	versionAssignerAddr   = "versionAssigner"
-	persistAddr           = "persist"
-	emitterAddr           = "emitter"
+	persistAddr           = "applyToAndCommit"
+	storeEmitterAddr      = "storeEmitter"
+	storeSinkAddr         = "storeSink"
 	operationSenderAddr   = "opSender"
 	operationReceiverAddr = "opReceiver"
 	feedbackSenderAddr    = "feedbackSender"
@@ -83,93 +92,110 @@ const (
 	leaseSenderAddr       = "leaseSender"
 	leaseReceiverAddr     = "leaseReceiver"
 	leaseProxyAddr        = "leaseProxy"
-	leaseAssignerAddr     = "leaseAssigner"
 	executorAddr          = "executor"
 )
 
-func Open(ctx signal.Context, cfg Config) (KV, error) {
+func Open(ctx signal.Context, cfg Config) (DB, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	cfg = cfg.Merge(DefaultConfig())
 
+	db := &kv{
+		Config:     cfg,
+		DB:         cfg.Engine,
+		leaseAlloc: &leaseAllocator{Config: cfg},
+	}
+
 	va, err := newVersionAssigner(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	exec := newExecutor(cfg)
-
-	emitterStore := newEmitter(cfg)
+	st := newStore()
 
 	pipe := plumber.New()
-	plumber.SetSource[batch](pipe, executorAddr, exec)
-	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
-	plumber.SetSource[batch](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
-	plumber.SetSegment[batch, batch](pipe, leaseAssignerAddr, newLeaseAssigner(cfg))
-	plumber.SetSegment[batch, batch](pipe, leaseProxyAddr, newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr))
-	plumber.SetSource[batch](pipe, operationReceiverAddr, newOperationReceiver(cfg, emitterStore))
-	plumber.SetSegment[batch, batch](pipe, versionFilterAddr, newVersionFilter(cfg, persistAddr, feedbackSenderAddr))
-	plumber.SetSegment[batch, batch](pipe, versionAssignerAddr, va)
-	plumber.SetSink[batch](pipe, leaseSenderAddr, newLeaseSender(cfg))
-	plumber.SetSegment[batch, batch](pipe, persistAddr, newPersist(cfg))
-	plumber.SetSegment[batch, batch](pipe, emitterAddr, emitterStore)
-	plumber.SetSegment[batch, batch](pipe, operationSenderAddr, newOperationSender(cfg))
-	plumber.SetSink[batch](pipe, feedbackSenderAddr, newFeedbackSender(cfg))
-	plumber.SetSource[batch](pipe, feedbackReceiverAddr, newFeedbackReceiver(cfg))
-	plumber.SetSegment[batch, batch](pipe, recoveryTransformAddr, newRecoveryTransform(cfg))
+	plumber.SetSource[BatchRequest](pipe, executorAddr, db)
+	plumber.SetSource[BatchRequest](pipe, leaseReceiverAddr, newLeaseReceiver(cfg))
+	plumber.SetSegment[BatchRequest, BatchRequest](
+		pipe,
+		leaseProxyAddr,
+		newLeaseProxy(cfg, versionAssignerAddr, leaseSenderAddr),
+	)
+	plumber.SetSource[BatchRequest](pipe, operationReceiverAddr, newOperationReceiver(cfg, st))
+	plumber.SetSegment[BatchRequest](
+		pipe,
+		versionFilterAddr,
+		newVersionFilter(cfg, persistAddr, feedbackSenderAddr),
+	)
+	plumber.SetSegment[BatchRequest](pipe, versionAssignerAddr, va)
+	plumber.SetSink[BatchRequest](pipe, leaseSenderAddr, newLeaseSender(cfg))
+	plumber.SetSegment[BatchRequest, BatchRequest](pipe, persistAddr, newPersist(cfg.Engine))
+	plumber.SetSource[BatchRequest](pipe, storeEmitterAddr, newStoreEmitter(st, cfg))
+	plumber.SetSink[BatchRequest](pipe, storeSinkAddr, newStoreSink(st))
+	plumber.SetSegment[BatchRequest, BatchRequest](
+		pipe,
+		operationSenderAddr,
+		newOperationSender(cfg),
+	)
+	plumber.SetSink[BatchRequest](pipe, feedbackSenderAddr, newFeedbackSender(cfg))
+	plumber.SetSource[BatchRequest](pipe, feedbackReceiverAddr, newFeedbackReceiver(cfg))
+	plumber.SetSegment[BatchRequest, BatchRequest](
+		pipe,
+		recoveryTransformAddr,
+		newRecoveryTransform(cfg),
+	)
 
 	c := errutil.NewCatchSimple()
-	c.Exec(plumber.UnaryRouter[batch]{
-		SourceTarget: executorAddr,
-		SinkTarget:   leaseAssignerAddr,
-		Capacity:     1,
-	}.PreRoute(pipe))
 
-	c.Exec(plumber.MultiRouter[batch]{
-		SourceTargets: []address.Address{leaseAssignerAddr, leaseReceiverAddr},
+	c.Exec(plumber.MultiRouter[BatchRequest]{
+		SourceTargets: []address.Address{executorAddr, leaseReceiverAddr},
 		SinkTargets:   []address.Address{leaseProxyAddr},
 		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[BatchRequest]{
 		SourceTargets: []address.Address{leaseProxyAddr},
 		SinkTargets:   []address.Address{versionAssignerAddr, leaseSenderAddr},
 		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.MultiRouter[batch]{
-		SourceTargets: []address.Address{versionAssignerAddr, operationReceiverAddr, operationSenderAddr},
-		SinkTargets:   []address.Address{versionFilterAddr},
-		Stitch:        plumber.StitchUnary,
-		Capacity:      1,
+	c.Exec(plumber.MultiRouter[BatchRequest]{
+		SourceTargets: []address.Address{
+			versionAssignerAddr,
+			operationReceiverAddr,
+			operationSenderAddr,
+		},
+		SinkTargets: []address.Address{versionFilterAddr},
+		Stitch:      plumber.StitchUnary,
+		Capacity:    1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[BatchRequest]{
 		SourceTargets: []address.Address{versionFilterAddr},
 		SinkTargets:   []address.Address{feedbackSenderAddr, persistAddr},
 		Stitch:        plumber.StitchWeave,
 		Capacity:      1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.UnaryRouter[batch]{
+	c.Exec(plumber.UnaryRouter[BatchRequest]{
 		SourceTarget: feedbackReceiverAddr,
 		SinkTarget:   recoveryTransformAddr,
 		Capacity:     1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.MultiRouter[batch]{
+	c.Exec(plumber.MultiRouter[BatchRequest]{
 		SourceTargets: []address.Address{persistAddr, recoveryTransformAddr},
-		SinkTargets:   []address.Address{emitterAddr},
+		SinkTargets:   []address.Address{storeSinkAddr},
 		Stitch:        plumber.StitchUnary,
 		Capacity:      1,
 	}.PreRoute(pipe))
 
-	c.Exec(plumber.UnaryRouter[batch]{
-		SourceTarget: emitterAddr,
+	c.Exec(plumber.UnaryRouter[BatchRequest]{
+		SourceTarget: storeEmitterAddr,
 		SinkTarget:   operationSenderAddr,
 		Capacity:     1,
 	}.PreRoute(pipe))
@@ -180,9 +206,5 @@ func Open(ctx signal.Context, cfg Config) (KV, error) {
 
 	pipe.Flow(ctx)
 
-	return &kv{
-		Config: cfg,
-		KV:     cfg.Engine,
-		exec:   exec,
-	}, nil
+	return db, nil
 }

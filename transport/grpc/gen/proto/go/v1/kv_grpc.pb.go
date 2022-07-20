@@ -103,7 +103,7 @@ var FeedbackService_ServiceDesc = grpc.ServiceDesc{
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type OperationServiceClient interface {
-	Operation(ctx context.Context, in *OperationMessage, opts ...grpc.CallOption) (*OperationMessage, error)
+	Operation(ctx context.Context, in *BatchRequest, opts ...grpc.CallOption) (*BatchRequest, error)
 }
 
 type operationServiceClient struct {
@@ -114,8 +114,8 @@ func NewOperationServiceClient(cc grpc.ClientConnInterface) OperationServiceClie
 	return &operationServiceClient{cc}
 }
 
-func (c *operationServiceClient) Operation(ctx context.Context, in *OperationMessage, opts ...grpc.CallOption) (*OperationMessage, error) {
-	out := new(OperationMessage)
+func (c *operationServiceClient) Operation(ctx context.Context, in *BatchRequest, opts ...grpc.CallOption) (*BatchRequest, error) {
+	out := new(BatchRequest)
 	err := c.cc.Invoke(ctx, "/aspen.v1.OperationService/Operation", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -127,14 +127,14 @@ func (c *operationServiceClient) Operation(ctx context.Context, in *OperationMes
 // All implementations should embed UnimplementedOperationServiceServer
 // for forward compatibility
 type OperationServiceServer interface {
-	Operation(context.Context, *OperationMessage) (*OperationMessage, error)
+	Operation(context.Context, *BatchRequest) (*BatchRequest, error)
 }
 
 // UnimplementedOperationServiceServer should be embedded to have forward compatible implementations.
 type UnimplementedOperationServiceServer struct {
 }
 
-func (UnimplementedOperationServiceServer) Operation(context.Context, *OperationMessage) (*OperationMessage, error) {
+func (UnimplementedOperationServiceServer) Operation(context.Context, *BatchRequest) (*BatchRequest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Operation not implemented")
 }
 
@@ -150,7 +150,7 @@ func RegisterOperationServiceServer(s grpc.ServiceRegistrar, srv OperationServic
 }
 
 func _OperationService_Operation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(OperationMessage)
+	in := new(BatchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -162,7 +162,7 @@ func _OperationService_Operation_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: "/aspen.v1.OperationService/Operation",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OperationServiceServer).Operation(ctx, req.(*OperationMessage))
+		return srv.(OperationServiceServer).Operation(ctx, req.(*BatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -187,7 +187,7 @@ var OperationService_ServiceDesc = grpc.ServiceDesc{
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LeaseServiceClient interface {
-	Forward(ctx context.Context, in *LeaseMessage, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Forward(ctx context.Context, in *BatchRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type leaseServiceClient struct {
@@ -198,7 +198,7 @@ func NewLeaseServiceClient(cc grpc.ClientConnInterface) LeaseServiceClient {
 	return &leaseServiceClient{cc}
 }
 
-func (c *leaseServiceClient) Forward(ctx context.Context, in *LeaseMessage, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *leaseServiceClient) Forward(ctx context.Context, in *BatchRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, "/aspen.v1.LeaseService/Forward", in, out, opts...)
 	if err != nil {
@@ -211,14 +211,14 @@ func (c *leaseServiceClient) Forward(ctx context.Context, in *LeaseMessage, opts
 // All implementations should embed UnimplementedLeaseServiceServer
 // for forward compatibility
 type LeaseServiceServer interface {
-	Forward(context.Context, *LeaseMessage) (*emptypb.Empty, error)
+	Forward(context.Context, *BatchRequest) (*emptypb.Empty, error)
 }
 
 // UnimplementedLeaseServiceServer should be embedded to have forward compatible implementations.
 type UnimplementedLeaseServiceServer struct {
 }
 
-func (UnimplementedLeaseServiceServer) Forward(context.Context, *LeaseMessage) (*emptypb.Empty, error) {
+func (UnimplementedLeaseServiceServer) Forward(context.Context, *BatchRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Forward not implemented")
 }
 
@@ -234,7 +234,7 @@ func RegisterLeaseServiceServer(s grpc.ServiceRegistrar, srv LeaseServiceServer)
 }
 
 func _LeaseService_Forward_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LeaseMessage)
+	in := new(BatchRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func _LeaseService_Forward_Handler(srv interface{}, ctx context.Context, dec fun
 		FullMethod: "/aspen.v1.LeaseService/Forward",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LeaseServiceServer).Forward(ctx, req.(*LeaseMessage))
+		return srv.(LeaseServiceServer).Forward(ctx, req.(*BatchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

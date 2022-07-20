@@ -8,32 +8,34 @@ import (
 
 type recoveryTransform struct {
 	Config
-	confluence.LinearTransform[batch, batch]
+	confluence.LinearTransform[BatchRequest, BatchRequest]
 	repetitions map[string]int
 }
 
 func newRecoveryTransform(cfg Config) segment {
 	r := &recoveryTransform{Config: cfg, repetitions: make(map[string]int)}
-	r.ApplyTransform = r.transform
+	r.LinearTransform.ApplyTransform = r.transform
 	return r
 }
 
-func (r *recoveryTransform) transform(ctx signal.Context,
-	batch batch) (oBatch batch, ok bool, err error) {
-	for _, op := range batch.operations {
+func (r *recoveryTransform) transform(
+	ctx signal.Context,
+	in BatchRequest,
+) (out BatchRequest, ok bool, err error) {
+	for _, op := range in.Operations {
 		key, err := kvx.CompositeKey(op.Key, op.Version)
 		if err != nil {
 			ctx.Transient() <- err
-			return oBatch, false, nil
+			return out, false, nil
 		}
 		strKey := string(key)
 		if r.repetitions[strKey] > r.RecoveryThreshold {
 			r.Logger.Debugw("recovering op", "host", r.Cluster.HostID(), "key", strKey)
 			op.state = recovered
-			oBatch.operations = append(oBatch.operations, op)
+			out.Operations = append(out.Operations, op)
 			delete(r.repetitions, strKey)
 		}
 		r.repetitions[strKey]++
 	}
-	return oBatch, true, nil
+	return out, true, nil
 }

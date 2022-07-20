@@ -90,7 +90,7 @@ var _ = Describe("Convergence", Serial, Ordered, func() {
 							Logger:     logger,
 							Pledge:     pledge.Config{Transport: pledgeT, RetryInterval: values.gossipInterval, RetryScale: 1},
 							Gossip:     gossip.Config{Transport: gossipT, Interval: values.gossipInterval},
-							Storage:    memkv.Open(),
+							Storage:    memkv.New(),
 							Experiment: alamos.Sub(subExp, fmt.Sprintf("cluster_%v", i)),
 						},
 					)

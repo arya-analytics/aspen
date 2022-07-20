@@ -24,7 +24,7 @@ type (
 )
 
 type KV interface {
-	kv.KV
+	kv.DB
 	kvx.Closer
 }
 
@@ -42,7 +42,7 @@ type DB interface {
 
 type db struct {
 	Cluster
-	kv.KV
+	kv.DB
 	options  *options
 	wg       signal.WaitGroup
 	shutdown context.CancelFunc

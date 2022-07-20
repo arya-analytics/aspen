@@ -14,24 +14,24 @@ import (
 type Builder struct {
 	clustermock.Builder
 	BaseCfg     kv.Config
-	OpNet       *tmock.Network[kv.OperationMessage, kv.OperationMessage]
+	OpNet       *tmock.Network[kv.BatchRequest, kv.BatchRequest]
 	FeedbackNet *tmock.Network[kv.FeedbackMessage, types.Nil]
-	LeaseNet    *tmock.Network[kv.LeaseMessage, types.Nil]
-	KVs         map[node.ID]kv.KV
+	LeaseNet    *tmock.Network[kv.BatchRequest, types.Nil]
+	KVs         map[node.ID]kv.DB
 }
 
 func NewBuilder(baseKVCfg kv.Config, baseClusterCfg cluster.Config) *Builder {
 	return &Builder{
 		BaseCfg:     baseKVCfg,
 		Builder:     *clustermock.NewBuilder(baseClusterCfg),
-		OpNet:       tmock.NewNetwork[kv.OperationMessage, kv.OperationMessage](),
+		OpNet:       tmock.NewNetwork[kv.BatchRequest, kv.BatchRequest](),
 		FeedbackNet: tmock.NewNetwork[kv.FeedbackMessage, types.Nil](),
-		LeaseNet:    tmock.NewNetwork[kv.LeaseMessage, types.Nil](),
-		KVs:         make(map[node.ID]kv.KV),
+		LeaseNet:    tmock.NewNetwork[kv.BatchRequest, types.Nil](),
+		KVs:         make(map[node.ID]kv.DB),
 	}
 }
 
-func (b *Builder) New(ctx signal.Context, kvCfg kv.Config, clusterCfg cluster.Config) (kv.KV,
+func (b *Builder) New(ctx signal.Context, kvCfg kv.Config, clusterCfg cluster.Config) (kv.DB,
 	error) {
 	clust, err := b.Builder.New(ctx, clusterCfg)
 	if err != nil {
@@ -39,7 +39,7 @@ func (b *Builder) New(ctx signal.Context, kvCfg kv.Config, clusterCfg cluster.Co
 	}
 	kvCfg = kvCfg.Merge(b.BaseCfg)
 	if kvCfg.Engine == nil {
-		kvCfg.Engine = memkv.Open()
+		kvCfg.Engine = memkv.New()
 	}
 	kvCfg.Cluster = clust
 	addr := clust.Host().Address

@@ -16,7 +16,7 @@ type Config struct {
 	// Storage is a key-value storage backend for the cluster. Cluster will flush changes to its state to this backend
 	// based on Config.StorageFlushInterval. Join will also attempt to load an existing cluster from this backend.
 	// If Config.Storage is not provided, Cluster state will only be stored in memory.
-	Storage kv.KV
+	Storage kv.DB
 	// StorageKey is the key used to store the cluster state in the backend.
 	StorageKey []byte
 	// StorageFlushInterval	is the interval at which the cluster state is flushed to the backend. If this is set to FlushOnEvery,
