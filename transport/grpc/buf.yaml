@@ -1,7 +1,5 @@
 version: v1
 name: buf.build/arya-analytics/aspen
-deps:
-  - buf.build/gogo/protobuf
 breaking:
   use:
     - FILE

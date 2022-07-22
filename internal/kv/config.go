@@ -27,7 +27,7 @@ type Config struct {
 	// [Not Required]
 	Logger *zap.SugaredLogger
 	// Engine is the underlying key-value engine that DB writes its Operations to.
-	//[Required]
+	// [Required]
 	Engine kvx.DB
 	// GossipInterval is how often a node initiates gossip with a peer.
 	// [Not Required]

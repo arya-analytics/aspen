@@ -41,6 +41,9 @@ func (cfg Config) Merge(def Config) Config {
 	if cfg.StorageFlushInterval == 0 {
 		cfg.StorageFlushInterval = def.StorageFlushInterval
 	}
+	if len(cfg.StorageKey) == 0 {
+		cfg.StorageKey = def.StorageKey
+	}
 
 	// |||| PLEDGE ||||
 

@@ -48,7 +48,7 @@ func (g *Gossip) GossipOnce(ctx context.Context) error {
 	snap := g.store.CopyState()
 	peer := RandomPeer(snap.Nodes, snap.HostID)
 	if peer.Address == "" {
-		g.Logger.Warn("no healthy nodes ")
+		g.Logger.Debug("no healthy nodes to gossip with")
 		return nil
 	}
 	g.Logger.Debug("gossip", "initiator", snap.HostID, "peer", peer.ID, "clusterSize", snap.Nodes)

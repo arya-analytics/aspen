@@ -301,8 +301,18 @@ func (f *feedback) translateForward(msg *aspenv1.FeedbackMessage) (tMsg kv.Feedb
 }
 
 func New() *transport {
-	pool := grpcx.NewPool(grpc.WithInsecure())
-	return &transport{
+	return NewWithPoolAndServer(
+		grpcx.NewPool(grpc.WithInsecure()),
+		grpc.NewServer(),
+	)
+}
+
+func NewWithPoolAndServer(
+	pool *grpcx.Pool,
+	server *grpc.Server,
+) *transport {
+	t := &transport{
+		server:        server,
 		pool:          pool,
 		pledge:        &pledgeTransport{core: core{Pool: pool}},
 		lease:         &lease{core: core{Pool: pool}},
@@ -310,10 +320,17 @@ func New() *transport {
 		operations:    &operations{core: core{Pool: pool}},
 		clusterGossip: &clusterGossip{core: core{Pool: pool}},
 	}
+	aspenv1.RegisterPledgeServiceServer(t.server, t.pledge)
+	aspenv1.RegisterLeaseServiceServer(t.server, t.lease)
+	aspenv1.RegisterFeedbackServiceServer(t.server, t.feedback)
+	aspenv1.RegisterOperationServiceServer(t.server, t.operations)
+	aspenv1.RegisterClusterGossipServiceServer(t.server, t.clusterGossip)
+	return t
 }
 
 // transport implements the aspen.Transport interface.
 type transport struct {
+	server        *grpc.Server
 	pool          *grpcx.Pool
 	pledge        *pledgeTransport
 	clusterGossip *clusterGossip
@@ -333,24 +350,18 @@ func (t *transport) Lease() kv.LeaseTransport { return t.lease }
 func (t *transport) Feedback() kv.FeedbackTransport { return t.feedback }
 
 func (t *transport) Configure(ctx signal.Context, addr address.Address) error {
-	server := grpc.NewServer()
-	aspenv1.RegisterPledgeServiceServer(server, t.pledge)
-	aspenv1.RegisterLeaseServiceServer(server, t.lease)
-	aspenv1.RegisterFeedbackServiceServer(server, t.feedback)
-	aspenv1.RegisterOperationServiceServer(server, t.operations)
-	aspenv1.RegisterClusterGossipServiceServer(server, t.clusterGossip)
 	lis, err := net.Listen("tcp", addr.PortString())
 	if err != nil {
 		return err
 	}
 	ctx.Go(func(ctx signal.Context) (err error) {
 		go func() {
-			err = server.Serve(lis)
+			err = t.server.Serve(lis)
 		}()
 		if err != nil {
 			return err
 		}
-		defer server.Stop()
+		defer t.server.Stop()
 		<-ctx.Done()
 		return ctx.Err()
 	})

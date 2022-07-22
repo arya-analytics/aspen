@@ -7,6 +7,7 @@ import (
 	"github.com/arya-analytics/aspen/internal/cluster/pledge"
 	"github.com/arya-analytics/aspen/internal/node"
 	"github.com/arya-analytics/x/address"
+	kvx "github.com/arya-analytics/x/kv"
 	"github.com/arya-analytics/x/kv/memkv"
 	"github.com/arya-analytics/x/signal"
 	tmock "github.com/arya-analytics/x/transport/mock"
@@ -35,62 +36,79 @@ var _ = Describe("Join", func() {
 		signal.LogTransient(clusterCtx, logger)
 	})
 
-	It("Should correctly join the cluster", func() {
+	Context("New cluster", func() {
 
-		By("Initializing the cluster correctly")
-		gossipT1 := gossipNet.RouteUnary("")
-		pledgeT1 := pledgeNet.RouteUnary(gossipT1.Address)
-		clusterOne, err := cluster.Join(
-			clusterCtx,
-			gossipT1.Address,
-			[]address.Address{},
-			cluster.Config{
-				Logger: logger,
-				Pledge: pledge.Config{
-					Logger:    logger,
-					Transport: pledgeT1,
-				},
-				Gossip: gossip.Config{
-					Logger:    logger,
-					Transport: gossipT1,
-					Interval:  100 * time.Millisecond,
-				},
-				Storage: memkv.New(),
-			},
-		)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(clusterOne.Host().ID).To(Equal(node.ID(1)))
+		It("Should correctly join the cluster", func() {
 
-		By("Pledging a new node to the cluster")
-		gossipT2 := gossipNet.RouteUnary("")
-		pledgeT2 := pledgeNet.RouteUnary(gossipT2.Address)
-		clusterTwo, err := cluster.Join(
-			clusterCtx,
-			gossipT2.Address,
-			[]address.Address{gossipT1.Address},
-			cluster.Config{
-				Logger: logger,
-				Pledge: pledge.Config{
-					Logger:    logger,
-					Transport: pledgeT2,
+			By("Initializing the cluster correctly")
+			gossipT1 := gossipNet.RouteUnary("")
+			pledgeT1 := pledgeNet.RouteUnary(gossipT1.Address)
+			clusterOne, err := cluster.Join(
+				clusterCtx,
+				gossipT1.Address,
+				[]address.Address{},
+				cluster.Config{
+					Logger: logger,
+					Pledge: pledge.Config{
+						Logger:    logger,
+						Transport: pledgeT1,
+					},
+					Gossip: gossip.Config{
+						Logger:    logger,
+						Transport: gossipT1,
+						Interval:  100 * time.Millisecond,
+					},
+					Storage: memkv.New(),
 				},
-				Gossip: gossip.Config{
-					Logger:    logger,
-					Transport: gossipT2,
-					Interval:  100 * time.Millisecond,
-				},
-				Storage: memkv.New(),
-			},
-		)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(clusterTwo.Host().ID).To(Equal(node.ID(2)))
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(clusterOne.Host().ID).To(Equal(node.ID(1)))
 
-		By("Converging cluster state through gossip")
-		time.Sleep(300 * time.Millisecond)
-		shutdown()
-		Expect(errors.Is(clusterCtx.Wait(), context.Canceled)).To(BeTrue())
-		Expect(clusterOne.Nodes()).To(HaveLen(2))
-		Expect(clusterTwo.Nodes()).To(HaveLen(2))
+			By("Pledging a new node to the cluster")
+			gossipT2 := gossipNet.RouteUnary("")
+			pledgeT2 := pledgeNet.RouteUnary(gossipT2.Address)
+			clusterTwo, err := cluster.Join(
+				clusterCtx,
+				gossipT2.Address,
+				[]address.Address{gossipT1.Address},
+				cluster.Config{
+					Logger: logger,
+					Pledge: pledge.Config{
+						Logger:    logger,
+						Transport: pledgeT2,
+					},
+					Gossip: gossip.Config{
+						Logger:    logger,
+						Transport: gossipT2,
+						Interval:  100 * time.Millisecond,
+					},
+					Storage: memkv.New(),
+				},
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(clusterTwo.Host().ID).To(Equal(node.ID(2)))
+
+			By("Converging cluster state through gossip")
+			time.Sleep(300 * time.Millisecond)
+			shutdown()
+			Expect(errors.Is(clusterCtx.Wait(), context.Canceled)).To(BeTrue())
+			Expect(clusterOne.Nodes()).To(HaveLen(2))
+			Expect(clusterTwo.Nodes()).To(HaveLen(2))
+		})
+
 	})
 
+	Context("Existing Cluster", func() {
+		var (
+			kv1, kv2 kvx.DB
+		)
+		BeforeEach(func() {
+			kv1, kv2 = memkv.New(), memkv.New()
+		})
+
+		It("Should remember the existing clusters state", func() {
+
+		})
+
+	})
 })
